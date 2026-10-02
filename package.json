@@ -1,5 +1,5 @@
 {
-  "name": "kb-app-1",
+  "name": "kingdom-builder-rehber",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,9 +9,14 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "^4.0.103",
+    "@vercel/blob": "^2.8.0",
+    "ai": "^7.0.127",
     "next": "16.3.8",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "react-markdown": "^10.1.0",
+    "server-only": "^0.0.1"
   },
   "devDependencies": {
     "@types/node": "^20",

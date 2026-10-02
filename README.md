@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kingdom Builder Kural Hakemi
 
-## Getting Started
+Kingdom Builder için Türkçe, sesli/yazılı kural asistanı ve skor tablosu.
 
-First, run the development server:
+- `/` — Kural Hakemi: soruyu söyle ya da yaz, resmi kurallara dayanan kısa cevap al (cevap sesli okunabilir).
+- `/skor` — Skor Tablosu: oyun sonuçları, galibiyetler, rekor fark, seriler ve diğer istatistikler.
+
+## Nasıl çalışır
+
+- Next.js (App Router) + Vercel AI SDK, Vercel'de barındırılır.
+- Cevaplar: Vercel AI Gateway üzerinden `openai/gpt-5.2` (yedek: `google/gemini-2.5-flash`), ikisi de AI Gateway ücretsiz katmanında. Kural bilgisi `lib/rules.ts` içinde.
+- Ses: tarayıcının konuşma tanıma özelliği (`tr-TR`); yoksa ses kaydı `/api/transcribe` ile `openai/gpt-4o-mini-transcribe` modeline gönderilir.
+- Skorlar: Vercel Blob'da tek bir özel JSON dosyası (`lib/scoreStore.ts`). Yerelde Blob token'ı yoksa `.data/scoreboard.json` kullanılır.
+
+## Ortam değişkenleri (isteğe bağlı)
+
+| Değişken | Varsayılan |
+| --- | --- |
+| `AI_GATEWAY_MODEL` | `openai/gpt-5.2` |
+| `AI_GATEWAY_FALLBACK_MODELS` | `google/gemini-2.5-flash` |
+| `AI_GATEWAY_TRANSCRIBE_MODEL` | `openai/gpt-4o-mini-transcribe` |
+| `BLOB_READ_WRITE_TOKEN` | Blob store projeye bağlanınca Vercel ekler |
+
+## Geliştirme
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+AI çağrıları yerelde `vercel link` + `vercel env pull` (OIDC) ya da `AI_GATEWAY_API_KEY` gerektirir.

@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# research material (copyrighted rulebooks)
+/.research
+.DS_Store
+/.data
