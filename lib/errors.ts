@@ -12,7 +12,10 @@ export function errorCode(error: unknown): ErrorCode {
   const message = error instanceof Error ? error.message.toLowerCase() : "";
 
   if (message.includes("credit card") || message.includes("customer_verification")) return "not_enabled";
-  if (status === 429 || message.includes("rate limit")) return "rate_limit";
+  if (message.includes("api key") || message.includes("api_key")) return "not_enabled";
+  // Gemini free tier: per-day limits mean "come back tomorrow", per-minute limits mean "wait a bit".
+  if (/per ?day/.test(message)) return "quota";
+  if (status === 429 || message.includes("rate limit") || message.includes("resource_exhausted")) return "rate_limit";
   if (status === 402 || message.includes("insufficient") || message.includes("quota")) return "quota";
   if (status === 401 || status === 403) return "not_enabled";
   return "generic";

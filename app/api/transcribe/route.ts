@@ -1,11 +1,11 @@
-import { transcribe } from "ai";
+import { generateText, transcribe } from "ai";
+import { gatewayTranscriber, geminiListener, usingGemini } from "@/lib/ai";
 import { errorCode } from "@/lib/errors";
 import { isLang } from "@/lib/i18n";
 
 export const maxDuration = 30;
 
 // Used only when the browser has no built-in speech recognition.
-const MODEL = process.env.AI_GATEWAY_TRANSCRIBE_MODEL ?? "openai/gpt-4o-mini-transcribe";
 const MAX_BYTES = 8 * 1024 * 1024;
 
 const TERMS =
@@ -17,6 +17,33 @@ const VOCABULARY = {
   tr: `Kingdom Builder oyunu hakkında Türkçe bir soru. Geçebilecek kelimeler: ${TERMS}, yerleşim, çeyrek.`,
   en: `A question about the board game Kingdom Builder. Possible words: ${TERMS}, settlement, sector.`,
 };
+
+async function toText(audio: Uint8Array, mediaType: string, lang: "tr" | "en") {
+  if (usingGemini()) {
+    const { text } = await generateText({
+      model: geminiListener(),
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: `Transcribe this recording word for word in ${lang === "tr" ? "Turkish" : "English"}. ${VOCABULARY[lang]} Reply with the transcript only.`,
+            },
+            { type: "file", mediaType, data: audio },
+          ],
+        },
+      ],
+    });
+    return text;
+  }
+  const { text } = await transcribe({
+    model: gatewayTranscriber(),
+    audio,
+    providerOptions: { openai: { language: lang, prompt: VOCABULARY[lang] } },
+  });
+  return text;
+}
 
 export async function POST(req: Request) {
   let form: FormData;
@@ -35,11 +62,8 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { text } = await transcribe({
-      model: MODEL,
-      audio: new Uint8Array(await file.arrayBuffer()),
-      providerOptions: { openai: { language: lang, prompt: VOCABULARY[lang] } },
-    });
+    const mediaType = file.type.split(";")[0] || "audio/webm";
+    const text = await toText(new Uint8Array(await file.arrayBuffer()), mediaType, lang);
     return Response.json({ text: text.trim() });
   } catch (error) {
     console.error("transcribe failed", error);

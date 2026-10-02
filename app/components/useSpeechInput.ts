@@ -77,7 +77,7 @@ export function useSpeechInput(lang: Lang, onText: (text: string) => void, onErr
       return;
     }
 
-    const mimeType = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"].find((t) =>
+    const mimeType = ["audio/ogg;codecs=opus", "audio/mp4", "audio/webm;codecs=opus", "audio/webm"].find((t) =>
       MediaRecorder.isTypeSupported(t),
     );
     const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
@@ -133,7 +133,8 @@ export function useSpeechInput(lang: Lang, onText: (text: string) => void, onErr
       setStatus("transcribing");
       try {
         const form = new FormData();
-        form.append("audio", audio, audio.type.includes("mp4") ? "question.m4a" : "question.webm");
+        const ext = audio.type.includes("mp4") ? "m4a" : audio.type.includes("ogg") ? "ogg" : "webm";
+        form.append("audio", audio, `question.${ext}`);
         form.append("lang", langRef.current);
         const res = await fetch("/api/transcribe", { method: "POST", body: form });
         const data = (await res.json().catch(() => ({}))) as { text?: string; error?: ErrorCode };

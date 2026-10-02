@@ -21,13 +21,13 @@ A voice-first rules referee and scoreboard for the board game **Kingdom Builder*
 
 ## How it works
 
-1. **Listening:** the phone's built-in dictation (Web Speech API) turns speech into text. If the browser can't do that, a short recording is sent to `openai/gpt-4o-mini-transcribe`.
-2. **Answering:** the question goes to `openai/gpt-5.2`, with `google/gemini-2.5-flash` as a fallback. Both run through Vercel AI Gateway, together with the rules reference in [`lib/rules.ts`](lib/rules.ts).
+1. **Listening:** the phone's built-in dictation (Web Speech API) turns speech into text. If the browser can't do that, a short recording is transcribed by Gemini.
+2. **Answering:** the question and the rules reference in [`lib/rules.ts`](lib/rules.ts) go to Google Gemini on the free Gemini API tier (`gemini-3.8-flash`, falling back to `gemini-2.5-flash` when its daily limit is reached). Without a Gemini key, the app uses Vercel AI Gateway (`openai/gpt-5.2`) instead. See [`lib/ai.ts`](lib/ai.ts).
 3. **Speaking:** the phone's built-in text-to-speech reads the answer.
 
 Scores are stored as one private JSON document in Vercel Blob ([`lib/scoreStore.ts`](lib/scoreStore.ts)).
 
-**Stack:** Next.js 16 (App Router) · React 19 · Vercel AI SDK 7 · Vercel AI Gateway · Vercel Blob.
+**Stack:** Next.js 16 (App Router) · React 19 · Vercel AI SDK 7 · Google Gemini API · Vercel Blob.
 
 ## Run locally
 
@@ -41,6 +41,8 @@ Without Blob credentials, or with `SCOREBOARD_STORE=file`, scores are saved to `
 
 | Variable | Default |
 | --- | --- |
+| `GOOGLE_GENERATIVE_AI_API_KEY` | free key from Google AI Studio; when set, Gemini is used |
+| `GEMINI_MODELS` | `gemini-3.8-flash,gemini-2.5-flash` |
 | `AI_GATEWAY_MODEL` | `openai/gpt-5.2` |
 | `AI_GATEWAY_FALLBACK_MODELS` | `google/gemini-2.5-flash` |
 | `AI_GATEWAY_TRANSCRIBE_MODEL` | `openai/gpt-4o-mini-transcribe` |
