@@ -4,12 +4,18 @@ import type { Lang } from "./i18n";
 
 type GuideText = { goal: string; scoring: string; notes: string[]; ask: string };
 
-export type GuideItem = { name: string; accent: string } & Record<Lang, GuideText>;
+export type GuideItem = {
+  name: string;
+  /** Name in the Turkish edition (Neotroy), shown next to the English name. */
+  trName: string;
+  image: string;
+} & Record<Lang, GuideText>;
 
 export const KINGDOM_BUILDER_CARDS: GuideItem[] = [
   {
     name: "Farmers",
-    accent: "#8db849",
+    trName: "Çiftçiler",
+    image: "/components/card-farmers.webp",
     tr: {
       goal: "Her çeyreğe yerleşim kur.",
       scoring: "En az yerleşimin olan çeyrekteki her yerleşimin için 3 altın.",
@@ -35,7 +41,8 @@ export const KINGDOM_BUILDER_CARDS: GuideItem[] = [
   },
   {
     name: "Lords",
-    accent: "#9b4f96",
+    trName: "Derebeyleri",
+    image: "/components/card-lords.webp",
     tr: {
       goal: "Her çeyrekte en çok yerleşime sahip ol.",
       scoring: "Her çeyrek ayrı: en çok yerleşimi olan 12 altın, ikinci en çok olan 6 altın.",
@@ -59,7 +66,8 @@ export const KINGDOM_BUILDER_CARDS: GuideItem[] = [
   },
   {
     name: "Knights",
-    accent: "#c9a227",
+    trName: "Şövalyeler",
+    image: "/components/card-knights.webp",
     tr: {
       goal: "Tek bir yatay sırada çok yerleşim kur.",
       scoring: "En çok yerleşimin olan yatay sıradaki her yerleşimin için 2 altın.",
@@ -81,7 +89,8 @@ export const KINGDOM_BUILDER_CARDS: GuideItem[] = [
   },
   {
     name: "Discoverers",
-    accent: "#d9822b",
+    trName: "Kaşifler",
+    image: "/components/card-discoverers.webp",
     tr: {
       goal: "Mümkün olduğunca çok yatay sırada yerleşim kur.",
       scoring: "En az bir yerleşimin olan her yatay sıra için 1 altın.",
@@ -97,7 +106,8 @@ export const KINGDOM_BUILDER_CARDS: GuideItem[] = [
   },
   {
     name: "Merchants",
-    accent: "#b5651d",
+    trName: "Tüccarlar",
+    image: "/components/card-merchants.webp",
     tr: {
       goal: "Lokasyon ve kaleleri kendi yerleşimlerinle birbirine bağla.",
       scoring:
@@ -123,7 +133,8 @@ export const KINGDOM_BUILDER_CARDS: GuideItem[] = [
   },
   {
     name: "Citizens",
-    accent: "#3f8f7a",
+    trName: "Şehirliler",
+    image: "/components/card-citizens.webp",
     tr: {
       goal: "Büyük tek bir yerleşim alanı oluştur.",
       scoring: "En büyük bağlı yerleşim grubundaki her 2 yerleşim için 1 altın.",
@@ -139,7 +150,8 @@ export const KINGDOM_BUILDER_CARDS: GuideItem[] = [
   },
   {
     name: "Hermits",
-    accent: "#5b7a3a",
+    trName: "Münzeviler",
+    image: "/components/card-hermits.webp",
     tr: {
       goal: "Çok sayıda ayrı yerleşim alanı oluştur.",
       scoring: "Birbirinden ayrı her yerleşim grubu için 1 altın.",
@@ -155,7 +167,8 @@ export const KINGDOM_BUILDER_CARDS: GuideItem[] = [
   },
   {
     name: "Fishermen",
-    accent: "#3a86c8",
+    trName: "Balıkçılar",
+    image: "/components/card-fishermen.webp",
     tr: {
       goal: "Su kenarına yerleşim kur.",
       scoring: "En az bir su hex'ine komşu olan her yerleşimin için 1 altın.",
@@ -177,7 +190,8 @@ export const KINGDOM_BUILDER_CARDS: GuideItem[] = [
   },
   {
     name: "Miners",
-    accent: "#6b6f78",
+    trName: "Madenciler",
+    image: "/components/card-miners.webp",
     tr: {
       goal: "Dağ kenarına yerleşim kur.",
       scoring: "En az bir dağ hex'ine komşu olan her yerleşimin için 1 altın.",
@@ -193,7 +207,8 @@ export const KINGDOM_BUILDER_CARDS: GuideItem[] = [
   },
   {
     name: "Workers",
-    accent: "#8a5a3c",
+    trName: "İşçiler",
+    image: "/components/card-workers.webp",
     tr: {
       goal: "Lokasyon ve kalelerin yanına yerleşim kur.",
       scoring: "Bir lokasyona veya kaleye komşu olan her yerleşimin için 1 altın.",
@@ -212,7 +227,8 @@ export const KINGDOM_BUILDER_CARDS: GuideItem[] = [
 export const LOCATION_TILES: GuideItem[] = [
   {
     name: "Oracle",
-    accent: "#7a5cc7",
+    trName: "Mabet",
+    image: "/components/tile-oracle.webp",
     tr: {
       goal: "Kartındaki araziye +1 yerleşim.",
       scoring: "Bu tur oynadığın arazi kartıyla aynı arazi türüne 1 yerleşim kur. Mümkünse komşu kur.",
@@ -228,7 +244,8 @@ export const LOCATION_TILES: GuideItem[] = [
   },
   {
     name: "Farm",
-    accent: "#8db849",
+    trName: "Çiftlik",
+    image: "/components/tile-farm.webp",
     tr: {
       goal: "Grass'a +1 yerleşim.",
       scoring: "Grass (çimen) hex'ine 1 yerleşim kur. Mümkünse komşu kur.",
@@ -244,7 +261,8 @@ export const LOCATION_TILES: GuideItem[] = [
   },
   {
     name: "Oasis",
-    accent: "#e2b84a",
+    trName: "Vaha",
+    image: "/components/tile-oasis.webp",
     tr: {
       goal: "Desert'e +1 yerleşim.",
       scoring: "Desert (çöl) hex'ine 1 yerleşim kur. Mümkünse komşu kur.",
@@ -260,7 +278,8 @@ export const LOCATION_TILES: GuideItem[] = [
   },
   {
     name: "Tower",
-    accent: "#9a6b4f",
+    trName: "Kule",
+    image: "/components/tile-tower.webp",
     tr: {
       goal: "Harita kenarına +1 yerleşim.",
       scoring: "Haritanın dış kenarındaki herhangi bir kurulabilir hex'e 1 yerleşim kur. Mümkünse komşu kur.",
@@ -276,7 +295,8 @@ export const LOCATION_TILES: GuideItem[] = [
   },
   {
     name: "Tavern",
-    accent: "#b5651d",
+    trName: "Taverna",
+    image: "/components/tile-tavern.webp",
     tr: {
       goal: "3'lü sıranın ucuna +1 yerleşim.",
       scoring: "Düz bir çizgide yan yana en az 3 yerleşiminin bir ucuna 1 yerleşim kur.",
@@ -292,7 +312,8 @@ export const LOCATION_TILES: GuideItem[] = [
   },
   {
     name: "Barn",
-    accent: "#a23b2a",
+    trName: "Ahır",
+    image: "/components/tile-barn.webp",
     tr: {
       goal: "Yerleşimini kartındaki araziye taşı.",
       scoring: "Bir yerleşimini, bu tur oynadığın arazi kartıyla aynı türdeki bir hex'e taşı. Mümkünse komşu taşı.",
@@ -308,7 +329,8 @@ export const LOCATION_TILES: GuideItem[] = [
   },
   {
     name: "Harbor",
-    accent: "#3a86c8",
+    trName: "Liman",
+    image: "/components/tile-harbor.webp",
     tr: {
       goal: "Yerleşimini suya taşı.",
       scoring: "Bir yerleşimini bir su hex'ine taşı. Mümkünse komşu taşı. Suya yerleşmenin tek yolu.",
@@ -324,7 +346,8 @@ export const LOCATION_TILES: GuideItem[] = [
   },
   {
     name: "Paddock",
-    accent: "#6f8f3a",
+    trName: "Padok",
+    image: "/components/tile-paddock.webp",
     tr: {
       goal: "Yerleşimini 2 hex zıplat.",
       scoring: "Bir yerleşimini düz bir çizgide tam 2 hex zıplat. Her şeyin üstünden atlayabilir.",
@@ -339,3 +362,21 @@ export const LOCATION_TILES: GuideItem[] = [
     },
   },
 ];
+
+export const ALL_COMPONENTS = [...KINGDOM_BUILDER_CARDS, ...LOCATION_TILES];
+
+const MENTION = new RegExp(
+  `\\b(${ALL_COMPONENTS.map((c) => c.name.replace(/s$/, "")).join("|")})s?\\b`,
+  "gi",
+);
+
+/** Cards and tiles named in a piece of text, in order of first mention. */
+export function mentionedComponents(text: string): GuideItem[] {
+  const found = new Set<GuideItem>();
+  for (const match of text.matchAll(MENTION)) {
+    const word = match[1].toLowerCase();
+    const item = ALL_COMPONENTS.find((c) => c.name.toLowerCase().replace(/s$/, "") === word);
+    if (item) found.add(item);
+  }
+  return [...found];
+}

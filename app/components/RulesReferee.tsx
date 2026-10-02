@@ -12,7 +12,8 @@ import {
 import Markdown from "react-markdown";
 import { ERROR_MARKER } from "@/lib/errors";
 import { errorText, type ErrorCode, type Lang } from "@/lib/i18n";
-import { CardGuide } from "./CardGuide";
+import { mentionedComponents } from "@/lib/cards";
+import { CardGuide, ComponentImage } from "./CardGuide";
 import { useI18n } from "./i18n";
 import { SiteNav } from "./SiteNav";
 import { canSpeak, speak, stopSpeaking, unlockSpeech } from "./speak";
@@ -276,6 +277,7 @@ export function RulesReferee() {
                     </p>
                   )
                 )}
+                {entry.state === "done" && <Mentions text={`${entry.question}\n${entry.answer}`} />}
                 {entry.state === "error" && (
                   <div className="answer-error" role="alert">
                     <p>{errorText(t, entry.error)}</p>
@@ -315,6 +317,31 @@ export function RulesReferee() {
       <footer className="footer">
         <p>{r.footer}</p>
       </footer>
+    </div>
+  );
+}
+
+/** Pictures of the cards and tiles an answer talks about, so players can match them to the table. */
+function Mentions({ text }: { text: string }) {
+  const { lang, t } = useI18n();
+  const items = mentionedComponents(text);
+  if (items.length === 0) return null;
+  return (
+    <div className="mentions">
+      <p className="mentions-label">{t.rules.mentions}</p>
+      <ul>
+        {items.map((item) => (
+          <li key={item.name}>
+            <ComponentImage item={item} size="mini" />
+            <span>
+              <span className="mention-name" lang="en">
+                {item.name}
+              </span>
+              {lang === "tr" && <span className="mention-tr">{item.trName}</span>}
+            </span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

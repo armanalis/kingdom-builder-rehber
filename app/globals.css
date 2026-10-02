@@ -547,23 +547,32 @@ h1 {
 
 .guide-item summary {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: 60px 1fr;
+  grid-template-areas:
+    "img title"
+    "img goal";
   column-gap: 12px;
   align-items: center;
-  padding: 12px 14px;
+  padding: 10px 14px 10px 10px;
   list-style: none;
+  cursor: pointer;
 }
 
 .guide-item summary::-webkit-details-marker {
   display: none;
 }
 
-.badge {
-  grid-row: span 2;
-  width: 30px;
-  height: 34px;
-  background: var(--accent);
-  clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+.guide-item summary .component-img {
+  grid-area: img;
+  justify-self: center;
+}
+
+.guide-title {
+  grid-area: title;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 8px;
 }
 
 .guide-name {
@@ -573,14 +582,98 @@ h1 {
   line-height: 1.2;
 }
 
+.guide-trname {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--castle);
+}
+
 .guide-goal {
+  grid-area: goal;
   font-size: 0.95rem;
   color: var(--ink-soft);
   line-height: 1.3;
 }
 
 .guide-body {
-  padding: 0 16px 16px 56px;
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 4px 16px 16px;
+}
+
+.guide-body > div {
+  flex: 1;
+  min-width: 0;
+}
+
+.component-img {
+  display: block;
+  height: auto;
+}
+
+.component-img.is-card {
+  border-radius: 6px;
+  box-shadow: 0 2px 6px -2px rgb(60 40 10 / 0.45);
+}
+
+.component-img.is-tile {
+  filter: drop-shadow(0 2px 3px rgb(60 40 10 / 0.35));
+}
+
+@media (max-width: 420px) {
+  .guide-body {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .guide-body .component-img.is-card {
+    width: 170px;
+  }
+}
+
+.mentions {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+}
+
+.mentions-label {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--castle);
+}
+
+.mentions ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mentions li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mentions li > span {
+  display: grid;
+  line-height: 1.2;
+}
+
+.mention-name {
+  font-weight: 800;
+}
+
+.mention-tr {
+  font-size: 0.85rem;
+  color: var(--ink-soft);
 }
 
 .guide-scoring {
