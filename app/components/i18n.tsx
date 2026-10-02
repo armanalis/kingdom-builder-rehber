@@ -12,8 +12,7 @@ const subscribe = (listener: () => void) => {
 
 function storedLang(): Lang {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (isLang(saved)) return saved;
-  return navigator.language?.toLowerCase().startsWith("tr") ? "tr" : "en";
+  return isLang(saved) ? saved : "tr";
 }
 
 type I18n = { lang: Lang; t: Messages; setLang: (lang: Lang) => void };

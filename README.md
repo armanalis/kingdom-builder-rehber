@@ -1,31 +1,55 @@
-# Kingdom Builder Kural Hakemi
+# Kingdom Builder · Kural Hakemi / Rules Referee
 
-Kingdom Builder için Türkçe, sesli/yazılı kural asistanı ve skor tablosu.
+A voice-first rules referee and scoreboard for the board game **Kingdom Builder**. Turkish by default, English with one tap.
 
-- `/` — Kural Hakemi: soruyu söyle ya da yaz, resmi kurallara dayanan kısa cevap al (cevap sesli okunabilir).
-- `/skor` — Skor Tablosu: oyun sonuçları, galibiyetler, rekor fark, seriler ve diğer istatistikler.
+**Live app:** https://kingdom-builder-rehber.vercel.app · **Project page:** https://armanalis.github.io/kingdom-builder-rehber/
 
-## Nasıl çalışır
+<p>
+  <img src="docs/screenshots/phone-rules.png" width="200" alt="Rules referee with a big microphone button">
+  <img src="docs/screenshots/phone-guide.png" width="200" alt="Quick card guide showing the Farmers card">
+  <img src="docs/screenshots/phone-scores.png" width="200" alt="Scoreboard with wins per player">
+  <img src="docs/screenshots/phone-compare.png" width="200" alt="Side-by-side player records">
+</p>
 
-- Next.js (App Router) + Vercel AI SDK, Vercel'de barındırılır.
-- Cevaplar: Vercel AI Gateway üzerinden `openai/gpt-5.2` (yedek: `google/gemini-2.5-flash`), ikisi de AI Gateway ücretsiz katmanında. Kural bilgisi `lib/rules.ts` içinde.
-- Ses: tarayıcının konuşma tanıma özelliği (`tr-TR`); yoksa ses kaydı `/api/transcribe` ile `openai/gpt-4o-mini-transcribe` modeline gönderilir.
-- Skorlar: Vercel Blob'da tek bir özel JSON dosyası (`lib/scoreStore.ts`). Yerelde Blob token'ı yoksa `.data/scoreboard.json` kullanılır.
+## Features
 
-## Ortam değişkenleri (isteğe bağlı)
+- **Ask out loud or type.** You get a short, precise answer grounded in the official rulebook, e.g. "For Farmers, does each quarter count separately, and do settlements need to be connected?" Card and tile names stay in English, as printed on the components.
+- **Answers read aloud** for spoken questions.
+- **Quick card guide** for all 10 Kingdom Builder cards and 8 location tiles, which works without any AI.
+- **Scoreboard for 2–5 players** shared across every phone: wins, record margin, closest game, winning and losing streaks, revenge rate, lucky card, game-night streak and more.
+- **First-visit onboarding** where players type their own names, a **TR / EN** switch, and layouts for phones and desktop.
 
-| Değişken | Varsayılan |
+## How it works
+
+1. **Listening:** the phone's built-in dictation (Web Speech API) turns speech into text. If the browser can't do that, a short recording is sent to `openai/gpt-4o-mini-transcribe`.
+2. **Answering:** the question goes to `openai/gpt-5.2`, with `google/gemini-2.5-flash` as a fallback. Both run through Vercel AI Gateway, together with the rules reference in [`lib/rules.ts`](lib/rules.ts).
+3. **Speaking:** the phone's built-in text-to-speech reads the answer.
+
+Scores are stored as one private JSON document in Vercel Blob ([`lib/scoreStore.ts`](lib/scoreStore.ts)).
+
+**Stack:** Next.js 16 (App Router) · React 19 · Vercel AI SDK 7 · Vercel AI Gateway · Vercel Blob.
+
+## Run locally
+
+```bash
+npm install
+vercel link && vercel env pull   # AI Gateway (OIDC) + Blob credentials
+npm run dev
+```
+
+Without Blob credentials, or with `SCOREBOARD_STORE=file`, scores are saved to `.data/scoreboard.json`.
+
+| Variable | Default |
 | --- | --- |
 | `AI_GATEWAY_MODEL` | `openai/gpt-5.2` |
 | `AI_GATEWAY_FALLBACK_MODELS` | `google/gemini-2.5-flash` |
 | `AI_GATEWAY_TRANSCRIBE_MODEL` | `openai/gpt-4o-mini-transcribe` |
-| `BLOB_READ_WRITE_TOKEN` | Blob store projeye bağlanınca Vercel ekler |
+| `BLOB_READ_WRITE_TOKEN` | added by Vercel when a Blob store is connected |
 
-## Geliştirme
+## Türkçe
 
-```bash
-npm install
-npm run dev
-```
+Kingdom Builder için sesli kural hakemi ve skor tablosu. Kuralı sesli sorun ya da yazın; resmi kural kitabına dayanan kısa ve net bir cevap alın, isterseniz sesli dinleyin. Skor tablosu 2–5 oyuncuyu destekler: galibiyetler, rekor fark, seriler, rövanş oranı, şanslı kart ve daha fazlası. Site varsayılan olarak Türkçedir; sağ üstten İngilizceye geçilebilir.
 
-AI çağrıları yerelde `vercel link` + `vercel env pull` (OIDC) ya da `AI_GATEWAY_API_KEY` gerektirir.
+---
+
+Unofficial fan project. Kingdom Builder is designed by Donald X. Vaccarino and published by Queen Games.

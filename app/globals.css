@@ -682,13 +682,14 @@ h1 {
 
 .leaderboard {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+  gap: 10px;
 }
 
 .leader-card {
   position: relative;
   display: grid;
+  align-content: start;
   justify-items: center;
   padding: 18px 12px 14px;
   background: var(--paper);

@@ -172,7 +172,7 @@ function Leaderboard({ stats, totalGames }: { stats: PlayerStats[]; totalGames: 
             <span className="leader-label">{t.scores.wins}</span>
             <span className="leader-meta">
               {t.scores.games(s.played)}
-              {s.played ? ` · ${Math.round(s.winRate * 100)}%` : ""}
+              {s.played ? ` · ${t.scores.percent(Math.round(s.winRate * 100))}` : ""}
               {s.draws ? ` · ${t.scores.draws(s.draws)}` : ""}
             </span>
           </div>

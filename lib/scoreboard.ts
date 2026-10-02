@@ -62,8 +62,8 @@ export function emptyScoreboard(): Scoreboard {
   return {
     version: 1,
     players: [
-      { id: "anne", name: "1. oyuncu", color: PLAYER_COLORS[0] },
-      { id: "baba", name: "2. oyuncu", color: PLAYER_COLORS[1] },
+      { id: "p1", name: "1. oyuncu", color: PLAYER_COLORS[0] },
+      { id: "p2", name: "2. oyuncu", color: PLAYER_COLORS[1] },
     ],
     games: [],
   };

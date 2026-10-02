@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Kingdom Builder · Kural Hakemi</title>
+    <meta name="description" content="Kingdom Builder için sesli kural hakemi ve skor tablosu. A voice-first rules referee and scoreboard for Kingdom Builder." />
+    <meta name="theme-color" content="#2f5d3a" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --parchment: #f5ecd9;
+        --paper: #fffaf0;
+        --line: #e0cfa9;
+        --ink: #2b2118;
+        --ink-soft: #5f4d3b;
+        --forest: #2f5d3a;
+        --forest-deep: #1d3d26;
+        --gold: #c9a227;
+        --castle: #a23b2a;
+        --shadow: 0 1px 2px rgb(60 40 10 / 0.08), 0 8px 24px -8px rgb(60 40 10 / 0.22);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font: 1.125rem/1.55 Nunito, system-ui, sans-serif;
+        color: var(--ink);
+        background: var(--parchment)
+          url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='100' viewBox='0 0 56 100'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100' fill='none' stroke='%23b99a5e' stroke-opacity='.18' stroke-width='1.2'/%3E%3C/svg%3E");
+      }
+      .wrap {
+        width: min(100%, 1080px);
+        margin-inline: auto;
+        padding: max(20px, env(safe-area-inset-top)) 20px 40px;
+      }
+      .top { display: flex; justify-content: flex-end; }
+      .lang { display: flex; padding: 4px; border-radius: 999px; background: rgb(234 219 187 / 0.7); border: 1px solid var(--line); }
+      .lang button { min-width: 40px; padding: 8px 10px; border: 0; border-radius: 999px; background: none; font: inherit; font-weight: 800; font-size: 0.85rem; color: var(--ink-soft); cursor: pointer; }
+      .lang button[aria-pressed="true"] { background: var(--paper); color: var(--forest-deep); box-shadow: 0 1px 4px -1px rgb(60 40 10 / 0.35); }
+      header { text-align: center; padding: 16px 0 28px; }
+      .hexes { display: inline-flex; gap: 5px; margin-bottom: 14px; }
+      .hexes span { width: 22px; height: 25px; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+      .eyebrow { margin: 0; font: 600 0.95rem Fraunces, Georgia, serif; letter-spacing: 0.22em; text-transform: uppercase; color: var(--castle); }
+      h1 { margin: 4px 0 10px; font: 700 clamp(2.4rem, 8vw, 3.8rem)/1.05 Fraunces, Georgia, serif; color: var(--forest-deep); }
+      .lede { max-width: 38ch; margin: 0 auto; color: var(--ink-soft); text-wrap: balance; }
+      .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 24px; }
+      .btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 24px; border-radius: 999px; font-weight: 800; text-decoration: none; }
+      .btn-primary { background: var(--forest); color: #fff8e6; box-shadow: 0 10px 24px -10px rgb(29 61 38 / 0.8); }
+      .btn-secondary { border: 1.5px solid var(--forest); color: var(--forest-deep); }
+      .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin: 12px 0 40px; }
+      .shots img { width: 100%; height: auto; border-radius: 22px; border: 1px solid var(--line); box-shadow: var(--shadow); background: var(--paper); }
+      h2 { margin: 0 0 14px; font: 700 1.8rem Fraunces, Georgia, serif; color: var(--forest-deep); }
+      .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin: 0 0 40px; padding: 0; list-style: none; }
+      .features li { padding: 18px; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; }
+      .features strong { display: block; margin-bottom: 4px; color: var(--forest-deep); }
+      .steps { display: grid; gap: 12px; margin: 0 0 40px; padding: 0; list-style: none; counter-reset: step; }
+      .steps li { position: relative; padding: 16px 18px 16px 64px; background: var(--paper); border: 1px solid var(--line); border-radius: 18px; counter-increment: step; }
+      .steps li::before { content: counter(step); position: absolute; left: 18px; top: 16px; width: 30px; height: 34px; display: grid; place-items: center; background: var(--forest); color: #fff8e6; font-weight: 800; clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%); }
+      .desktop { width: 100%; height: auto; border-radius: 16px; border: 1px solid var(--line); box-shadow: var(--shadow); margin-bottom: 40px; }
+      footer { text-align: center; font-size: 0.9rem; color: var(--ink-soft); }
+      footer a { color: var(--forest-deep); }
+      [data-lang="en"] .tr, [data-lang="tr"] .en { display: none; }
+      :focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+    </style>
+  </head>
+  <body data-lang="tr">
+    <div class="wrap">
+      <div class="top">
+        <div class="lang" role="group" aria-label="Dil / Language">
+          <button type="button" data-set="tr" aria-pressed="true" lang="tr">TR</button>
+          <button type="button" data-set="en" aria-pressed="false" lang="en">EN</button>
+        </div>
+      </div>
+
+      <header>
+        <div class="hexes" aria-hidden="true">
+          <span style="background:#8db849"></span><span style="background:#a0714f"></span><span style="background:#e6c15a"></span><span style="background:#b98bc6"></span><span style="background:#3f6b3a"></span>
+        </div>
+        <p class="eyebrow" lang="en">Kingdom Builder</p>
+        <h1><span class="tr">Kural Hakemi</span><span class="en">Rules Referee</span></h1>
+        <p class="lede">
+          <span class="tr">Oyunda takıldığınız kuralı sesli sorun, resmi kurallara göre net cevap alın. Her oyunun skorunu kaydedin, rekorları görün.</span>
+          <span class="en">Ask any rule out loud and get a clear answer based on the official rules. Log every game and see the records.</span>
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="https://kingdom-builder-rehber.vercel.app"><span class="tr">Uygulamayı aç</span><span class="en">Open the app</span> →</a>
+          <a class="btn btn-secondary" href="https://github.com/armanalis/kingdom-builder-rehber"><span class="tr">Kaynak kod</span><span class="en">Source code</span></a>
+        </div>
+      </header>
+
+      <section class="shots" aria-label="Screenshots">
+        <img src="screenshots/phone-rules.png" width="804" height="1748" alt="Kural hakemi ekranı, büyük mikrofon butonu" />
+        <img src="screenshots/phone-guide.png" width="804" height="1748" alt="Hızlı kart rehberi, Farmers kartı" />
+        <img src="screenshots/phone-scores.png" width="804" height="1748" alt="Skor tablosu, oyuncu galibiyetleri" />
+        <img src="screenshots/phone-compare.png" width="804" height="1748" alt="Oyuncu rekorları yan yana" />
+      </section>
+
+      <section>
+        <h2><span class="tr">Neler yapıyor?</span><span class="en">What it does</span></h2>
+        <ul class="features">
+          <li>
+            <strong><span class="tr">🎙️ Sesli soru</span><span class="en">🎙️ Ask by voice</span></strong>
+            <span class="tr">Mikrofona dokunun, sorunuzu söyleyin. Cevap kısa, net ve istenirse sesli okunur.</span>
+            <span class="en">Tap the mic and say your question. The answer is short, precise and can be read aloud.</span>
+          </li>
+          <li>
+            <strong><span class="tr">🃏 Kart rehberi</span><span class="en">🃏 Card guide</span></strong>
+            <span class="tr">10 Kingdom Builder kartı ve 8 lokasyon karosu; yapay zekâya gerek yok.</span>
+            <span class="en">All 10 Kingdom Builder cards and 8 location tiles, no AI needed.</span>
+          </li>
+          <li>
+            <strong><span class="tr">🏆 Skor tablosu</span><span class="en">🏆 Scoreboard</span></strong>
+            <span class="tr">2–5 oyuncu, her telefonda aynı tablo: galibiyetler, rekor fark, seriler, şanslı kart…</span>
+            <span class="en">2–5 players, the same board on every phone: wins, record margin, streaks, lucky card…</span>
+          </li>
+          <li>
+            <strong><span class="tr">🌍 Türkçe ve İngilizce</span><span class="en">🌍 Turkish and English</span></strong>
+            <span class="tr">Varsayılan dil Türkçe; tek dokunuşla İngilizce. Telefonda ve bilgisayarda çalışır.</span>
+            <span class="en">Turkish by default, English with one tap. Works on phones and computers.</span>
+          </li>
+        </ul>
+      </section>
+
+      <section>
+        <h2><span class="tr">Nasıl çalışıyor?</span><span class="en">How it works</span></h2>
+        <ol class="steps">
+          <li>
+            <span class="tr"><strong>Dinleme:</strong> telefonun kendi dikte özelliği konuşmayı yazıya çevirir (ücretsiz).</span>
+            <span class="en"><strong>Listening:</strong> the phone's own dictation turns speech into text (free).</span>
+          </li>
+          <li>
+            <span class="tr"><strong>Cevaplama:</strong> soru, resmi kural metniyle birlikte bir yapay zekâ modeline gider ve sadece kurallara göre cevap verilir.</span>
+            <span class="en"><strong>Answering:</strong> the question goes to an AI model together with the official rules text, and it answers from those rules only.</span>
+          </li>
+          <li>
+            <span class="tr"><strong>Konuşma:</strong> cevabı telefonun kendi sesi okur (ücretsiz).</span>
+            <span class="en"><strong>Speaking:</strong> the phone's built-in voice reads the answer (free).</span>
+          </li>
+        </ol>
+      </section>
+
+      <img class="desktop" src="screenshots/desktop-scores.png" width="1366" height="900" alt="Bilgisayarda skor tablosu" loading="lazy" />
+
+      <footer>
+        <p>
+          <span class="tr">Resmi olmayan hayran projesi. Kingdom Builder, Donald X. Vaccarino tarafından tasarlanmış ve Queen Games tarafından yayımlanmıştır.</span>
+          <span class="en">Unofficial fan project. Kingdom Builder is designed by Donald X. Vaccarino and published by Queen Games.</span>
+        </p>
+        <p><a href="https://github.com/armanalis/kingdom-builder-rehber">GitHub</a></p>
+      </footer>
+    </div>
+    <script>
+      const buttons = document.querySelectorAll(".lang button");
+      const setLang = (lang) => {
+        document.body.dataset.lang = lang;
+        document.documentElement.lang = lang;
+        buttons.forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.set === lang)));
+      };
+      buttons.forEach((b) => b.addEventListener("click", () => setLang(b.dataset.set)));
+    </script>
+  </body>
+</html>
