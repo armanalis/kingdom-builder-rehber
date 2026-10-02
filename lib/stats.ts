@@ -14,16 +14,20 @@ export type PlayerStats = {
   wins: number;
   draws: number;
   winRate: number;
-  avgGold: number;
-  bestGold: number;
-  totalGold: number;
-  longestStreak: number;
 };
 
 export type Fact = { icon: string; title: string; text: string };
 
+/** One statistic shown side by side for every player. */
+export type Comparison = {
+  icon: string;
+  title: string;
+  cells: { player: Player; text: string; best: boolean }[];
+};
+
 const WEEKDAYS = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 const BIG_WIN = 30;
+const NONE = "—";
 
 export function parseDay(day: string) {
   const [y, m, d] = day.split("-").map(Number);
@@ -34,6 +38,9 @@ export function formatDay(day: string) {
   return new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "long", year: "numeric" }).format(parseDay(day));
 }
 
+const shortDay = (day: string) =>
+  new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short" }).format(parseDay(day));
+
 export function todayLocal() {
   const now = new Date();
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -41,7 +48,10 @@ export function todayLocal() {
 }
 
 const fmt = (n: number) => new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 1 }).format(n);
-const names = (players: Player[]) => players.map((p) => p.name).join(" ve ");
+
+function dayDiff(a: string, b: string) {
+  return Math.round((parseDay(b).getTime() - parseDay(a).getTime()) / 86_400_000);
+}
 
 export function outcomes(board: Scoreboard): Outcome[] {
   const byId = new Map(board.players.map((p) => [p.id, p]));
@@ -61,65 +71,37 @@ export function outcomes(board: Scoreboard): Outcome[] {
   });
 }
 
+const soleWinner = (r: Outcome, p: Player) => r.winners.length === 1 && r.winners[0].id === p.id;
+const playedIn = (r: Outcome, p: Player) => r.ranked.some((x) => x.player.id === p.id);
+const goldOf = (r: Outcome, p: Player) => r.ranked.find((x) => x.player.id === p.id)!.gold;
+
 export function playerStats(board: Scoreboard, results: Outcome[]): PlayerStats[] {
   return board.players.map((player) => {
-    let played = 0,
-      wins = 0,
-      draws = 0,
-      totalGold = 0,
-      bestGold = 0,
-      streak = 0,
-      longestStreak = 0;
-    for (const r of results) {
-      const mine = r.ranked.find((x) => x.player.id === player.id);
-      if (!mine) continue;
-      played++;
-      totalGold += mine.gold;
-      bestGold = Math.max(bestGold, mine.gold);
-      const won = r.winners.some((w) => w.id === player.id);
-      if (won && r.winners.length === 1) {
-        wins++;
-        streak++;
-        longestStreak = Math.max(longestStreak, streak);
-      } else {
-        if (won) draws++;
-        streak = 0;
-      }
-    }
-    return {
-      player,
-      played,
-      wins,
-      draws,
-      winRate: played ? wins / played : 0,
-      avgGold: played ? totalGold / played : 0,
-      bestGold,
-      totalGold,
-      longestStreak,
-    };
+    const mine = results.filter((r) => playedIn(r, player));
+    const wins = mine.filter((r) => soleWinner(r, player)).length;
+    const draws = mine.filter((r) => r.winners.length > 1 && r.winners.some((w) => w.id === player.id)).length;
+    return { player, played: mine.length, wins, draws, winRate: mine.length ? wins / mine.length : 0 };
   });
 }
 
-function dayDiff(a: string, b: string) {
-  return Math.round((parseDay(b).getTime() - parseDay(a).getTime()) / 86_400_000);
+/** Players shown in comparisons: everyone who has played, at least the first two. */
+export function activePlayers(board: Scoreboard, stats: PlayerStats[]) {
+  return stats.filter((s, i) => s.played > 0 || i < 2).map((s) => s.player);
 }
 
-export function funFacts(board: Scoreboard, results: Outcome[], stats: PlayerStats[]): Fact[] {
+/** Highlights about the whole game history (not tied to one player). */
+export function sharedFacts(results: Outcome[]): Fact[] {
   const facts: Fact[] = [];
   if (results.length === 0) return facts;
   const decided = results.filter((r) => r.winners.length === 1);
-  const vs = (r: Outcome) => `${r.ranked[0].player.name} ${r.ranked[0].gold} – ${r.ranked[1].player.name} ${r.ranked[1].gold}`;
+  const vs = (r: Outcome) =>
+    `${r.ranked[0].player.name} ${r.ranked[0].gold} – ${r.ranked[1].player.name} ${r.ranked[1].gold}`;
 
-  // Current winning streak.
   const last = results.at(-1)!;
   if (last.winners.length === 1) {
     const champ = last.winners[0];
     let n = 0;
-    for (let i = results.length - 1; i >= 0; i--) {
-      const r = results[i];
-      if (r.winners.length === 1 && r.winners[0].id === champ.id) n++;
-      else break;
-    }
+    for (let i = results.length - 1; i >= 0 && soleWinner(results[i], champ); i--) n++;
     if (n >= 2) facts.push({ icon: "🔥", title: "Seri devam ediyor", text: `${champ.name} son ${n} oyunu üst üste kazandı.` });
   }
 
@@ -127,107 +109,35 @@ export function funFacts(board: Scoreboard, results: Outcome[], stats: PlayerSta
     const record = decided.reduce((a, b) => (b.margin > a.margin ? b : a));
     facts.push({
       icon: "🏆",
-      title: "Rekor fark",
+      title: "Tüm zamanların rekor farkı",
       text: `${vs(record)} — ${record.margin} altın fark (${formatDay(record.game.playedOn)}).`,
     });
   }
-
   if (decided.length >= 2) {
     const closest = decided.reduce((a, b) => (b.margin < a.margin ? b : a));
     facts.push({
       icon: "⚖️",
       title: "En çekişmeli oyun",
-      text: `${closest.winners[0].name} sadece ${closest.margin} altın farkla kazandı (${vs(closest)}, ${formatDay(closest.game.playedOn)}).`,
+      text: `${vs(closest)} — sadece ${closest.margin} altın fark (${formatDay(closest.game.playedOn)}).`,
     });
   }
 
-  const allScores = results.flatMap((r) => r.ranked.map((x) => ({ ...x, day: r.game.playedOn })));
-  const high = allScores.reduce((a, b) => (b.gold > a.gold ? b : a));
-  facts.push({ icon: "💰", title: "En yüksek skor", text: `${high.player.name}, ${high.gold} altın (${formatDay(high.day)}).` });
-  if (results.length >= 3) {
-    const low = allScores.reduce((a, b) => (b.gold < a.gold ? b : a));
-    facts.push({ icon: "🫣", title: "En düşük skor", text: `${low.player.name}, ${low.gold} altın (${formatDay(low.day)}). Herkesin kötü bir gecesi olur.` });
-  }
-
-  const streakKing = stats.reduce((a, b) => (b.longestStreak > a.longestStreak ? b : a));
-  if (streakKing.longestStreak >= 3) {
-    facts.push({ icon: "👑", title: "En uzun galibiyet serisi", text: `${streakKing.player.name}: üst üste ${streakKing.longestStreak} galibiyet.` });
-  }
-
-  // Consecutive game nights.
   const days = [...new Set(results.map((r) => r.game.playedOn))];
-  let run = 1,
-    bestRun = 1;
+  let run = 1;
+  let bestRun = 1;
   for (let i = 1; i < days.length; i++) {
     run = dayDiff(days[i - 1], days[i]) === 1 ? run + 1 : 1;
     bestRun = Math.max(bestRun, run);
   }
   const currentRun = dayDiff(days.at(-1)!, todayLocal()) <= 1 ? run : 0;
   if (currentRun >= 2) {
-    facts.push({ icon: "🌙", title: "Oyun gecesi serisi", text: `${currentRun} gecedir aralıksız oynuyorsunuz.${bestRun > currentRun ? ` Rekor: ${bestRun} gece.` : ""}` });
+    facts.push({
+      icon: "🌙",
+      title: "Oyun gecesi serisi",
+      text: `${currentRun} gecedir aralıksız oynuyorsunuz.${bestRun > currentRun ? ` Rekor: ${bestRun} gece.` : ""}`,
+    });
   } else if (bestRun >= 3) {
     facts.push({ icon: "🌙", title: "Oyun gecesi rekoru", text: `En uzun aralıksız seri: ${bestRun} gece.` });
-  }
-
-  const thisMonth = todayLocal().slice(0, 7);
-  const monthResults = results.filter((r) => r.game.playedOn.startsWith(thisMonth));
-  if (monthResults.length >= 2) {
-    const counts = board.players
-      .map((p) => ({ p, n: monthResults.filter((r) => r.winners.length === 1 && r.winners[0].id === p.id).length }))
-      .filter((x) => monthResults.some((r) => r.ranked.some((y) => y.player.id === x.p.id)));
-    facts.push({ icon: "📅", title: "Bu ay", text: counts.map((x) => `${x.p.name} ${x.n}`).join(", ") + ` galibiyet (${monthResults.length} oyun).` });
-  }
-
-  if (results.length >= 3) {
-    const totals = stats.filter((s) => s.played).sort((a, b) => b.totalGold - a.totalGold);
-    facts.push({ icon: "🪙", title: "Hazine", text: "Bugüne kadar toplanan altın: " + totals.map((s) => `${s.player.name} ${fmt(s.totalGold)}`).join(", ") + "." });
-  }
-
-  for (const s of stats) {
-    const myWins = decided.filter((r) => r.winners[0].id === s.player.id);
-    if (myWins.length >= 3) {
-      const avg = myWins.reduce((sum, r) => sum + r.margin, 0) / myWins.length;
-      facts.push({ icon: "📏", title: `${s.player.name} kazanınca`, text: `ortalama ${fmt(avg)} altın farkla kazanıyor.` });
-    }
-  }
-
-  const crushes = board.players
-    .map((p) => ({ p, n: decided.filter((r) => r.winners[0].id === p.id && r.margin >= BIG_WIN).length }))
-    .filter((x) => x.n > 0);
-  if (crushes.length) {
-    facts.push({ icon: "💥", title: `${BIG_WIN}+ altın farkla ezici galibiyet`, text: crushes.map((x) => `${x.p.name} ${x.n} kez`).join(", ") + "." });
-  }
-
-  // Revenge: win rate in the very next game after a loss.
-  for (const s of stats) {
-    let chances = 0,
-      revenges = 0;
-    for (let i = 0; i < results.length - 1; i++) {
-      const lost = results[i].ranked.some((x) => x.player.id === s.player.id) && !results[i].winners.some((w) => w.id === s.player.id);
-      const next = results[i + 1];
-      if (!lost || !next.ranked.some((x) => x.player.id === s.player.id)) continue;
-      chances++;
-      if (next.winners.length === 1 && next.winners[0].id === s.player.id) revenges++;
-    }
-    if (chances >= 3) {
-      facts.push({ icon: "⚔️", title: `${s.player.name} rövanşta`, text: `Kaybettiği oyunun ardından gelen ${chances} oyunda ${revenges} galibiyet (%${Math.round((revenges / chances) * 100)}).` });
-    }
-  }
-
-  // Lucky Kingdom Builder card per player.
-  for (const s of stats) {
-    let best: { card: string; wins: number; games: number } | null = null;
-    const cards = new Set(results.flatMap((r) => r.game.cards ?? []));
-    for (const card of cards) {
-      const withCard = results.filter((r) => r.game.cards?.includes(card) && r.ranked.some((x) => x.player.id === s.player.id));
-      const wins = withCard.filter((r) => r.winners.length === 1 && r.winners[0].id === s.player.id).length;
-      if (withCard.length >= 2 && wins >= 2 && (!best || wins / withCard.length > best.wins / best.games)) {
-        best = { card, wins, games: withCard.length };
-      }
-    }
-    if (best) {
-      facts.push({ icon: "🃏", title: `Şanslı kart: ${s.player.name}`, text: `${best.card} masadayken ${best.games} oyunda ${best.wins} galibiyet.` });
-    }
   }
 
   if (results.length >= 5) {
@@ -241,8 +151,157 @@ export function funFacts(board: Scoreboard, results: Outcome[], stats: PlayerSta
   const draws = results.filter((r) => r.winners.length > 1);
   if (draws.length) {
     const d = draws.at(-1)!;
-    facts.push({ icon: "🤝", title: "Beraberlik", text: `${draws.length} oyun berabere bitti. Sonuncusu: ${names(d.winners)}, ${d.ranked[0].gold} altın.` });
+    facts.push({
+      icon: "🤝",
+      title: "Beraberlik",
+      text: `${draws.length} oyun berabere bitti. Sonuncusu ${d.ranked[0].gold} – ${d.ranked[0].gold} (${formatDay(d.game.playedOn)}).`,
+    });
   }
 
   return facts;
+}
+
+type Cell = { text: string; value?: number };
+
+/** Per-player statistics, shown side by side so every player gets their own number. */
+export function comparisons(players: Player[], results: Outcome[]): Comparison[] {
+  if (results.length === 0) return [];
+  const thisMonth = todayLocal().slice(0, 7);
+
+  const row = (
+    icon: string,
+    title: string,
+    cell: (p: Player, mine: Outcome[], wins: Outcome[]) => Cell,
+    better: "high" | "low" | null = "high",
+  ): Comparison => {
+    const raw = players.map((p) => {
+      const mine = results.filter((r) => playedIn(r, p));
+      return { player: p, ...cell(p, mine, mine.filter((r) => soleWinner(r, p))) };
+    });
+    const values = raw.flatMap((c) => (c.value === undefined ? [] : [c.value]));
+    const target = better === "high" ? Math.max(...values) : Math.min(...values);
+    // Highlight a single clear leader only.
+    const leaders = better && values.length > 1 ? raw.filter((c) => c.value === target) : [];
+    return {
+      icon,
+      title,
+      cells: raw.map((c) => ({ player: c.player, text: c.text, best: leaders.length === 1 && leaders[0] === c })),
+    };
+  };
+
+  const streaks = (p: Player, mine: Outcome[], won: (r: Outcome) => boolean) => {
+    let cur = 0;
+    let best = 0;
+    for (const r of mine) {
+      cur = won(r) ? cur + 1 : 0;
+      best = Math.max(best, cur);
+    }
+    return { best, current: cur };
+  };
+
+  const scoreLine = (r: Outcome, p: Player) => {
+    const opponent = r.ranked.find((x) => x.player.id !== p.id)!;
+    return `${goldOf(r, p)}–${opponent.gold}`;
+  };
+
+  return [
+    row("👑", "En uzun galibiyet serisi", (p, mine) => {
+      const { best } = streaks(p, mine, (r) => soleWinner(r, p));
+      return { text: best ? `${best} maç` : NONE, value: best };
+    }),
+    row("🔥", "Şu anki galibiyet serisi", (p, mine) => {
+      const { current } = streaks(p, mine, (r) => soleWinner(r, p));
+      return { text: current ? `${current} maç` : NONE, value: current };
+    }),
+    row("🏆", "En büyük galibiyeti", (p, _mine, wins) => {
+      if (!wins.length) return { text: NONE };
+      const r = wins.reduce((a, b) => (b.margin > a.margin ? b : a));
+      return { text: `+${r.margin} (${scoreLine(r, p)}, ${shortDay(r.game.playedOn)})`, value: r.margin };
+    }),
+    row(
+      "🤏",
+      "Kıl payı galibiyeti",
+      (p, _mine, wins) => {
+        if (!wins.length) return { text: NONE };
+        const r = wins.reduce((a, b) => (b.margin < a.margin ? b : a));
+        return { text: `+${r.margin} (${scoreLine(r, p)}, ${shortDay(r.game.playedOn)})`, value: r.margin };
+      },
+      null,
+    ),
+    row("📏", "Kazanınca ortalama fark", (_p, _mine, wins) => {
+      if (!wins.length) return { text: NONE };
+      const avg = wins.reduce((s, r) => s + r.margin, 0) / wins.length;
+      return { text: `+${fmt(avg)} altın`, value: avg };
+    }),
+    row(`💥`, `${BIG_WIN}+ farkla ezici galibiyet`, (_p, _mine, wins) => {
+      const n = wins.filter((r) => r.margin >= BIG_WIN).length;
+      return { text: `${n} kez`, value: n };
+    }),
+    row("💰", "En yüksek skoru", (p, mine) => {
+      if (!mine.length) return { text: NONE };
+      const r = mine.reduce((a, b) => (goldOf(b, p) > goldOf(a, p) ? b : a));
+      return { text: `${goldOf(r, p)} altın (${shortDay(r.game.playedOn)})`, value: goldOf(r, p) };
+    }),
+    row(
+      "🫣",
+      "En düşük skoru",
+      (p, mine) => {
+        if (!mine.length) return { text: NONE };
+        const r = mine.reduce((a, b) => (goldOf(b, p) < goldOf(a, p) ? b : a));
+        return { text: `${goldOf(r, p)} altın (${shortDay(r.game.playedOn)})`, value: goldOf(r, p) };
+      },
+      null,
+    ),
+    row("📊", "Ortalama skoru", (p, mine) => {
+      if (!mine.length) return { text: NONE };
+      const avg = mine.reduce((s, r) => s + goldOf(r, p), 0) / mine.length;
+      return { text: `${fmt(avg)} altın`, value: avg };
+    }),
+    row("🪙", "Toplam altın", (p, mine) => {
+      const total = mine.reduce((s, r) => s + goldOf(r, p), 0);
+      return { text: new Intl.NumberFormat("tr-TR").format(total), value: total };
+    }),
+    row(
+      "🌧️",
+      "En uzun kayıp serisi",
+      (p, mine) => {
+        const { best } = streaks(p, mine, (r) => !r.winners.some((w) => w.id === p.id));
+        return { text: best ? `${best} maç` : NONE, value: best };
+      },
+      null,
+    ),
+    row("⚔️", "Rövanş (kaybettikten sonraki oyun)", (p) => {
+      let chances = 0;
+      let revenges = 0;
+      for (let i = 0; i < results.length - 1; i++) {
+        const lost = playedIn(results[i], p) && !results[i].winners.some((w) => w.id === p.id);
+        if (!lost || !playedIn(results[i + 1], p)) continue;
+        chances++;
+        if (soleWinner(results[i + 1], p)) revenges++;
+      }
+      if (!chances) return { text: NONE };
+      const rate = revenges / chances;
+      return { text: `${chances} denemede ${revenges} (%${Math.round(rate * 100)})`, value: rate };
+    }),
+    row(
+      "🃏",
+      "Şanslı kartı",
+      (p, mine) => {
+        let best: { card: string; wins: number; games: number } | null = null;
+        for (const card of new Set(mine.flatMap((r) => r.game.cards ?? []))) {
+          const withCard = mine.filter((r) => r.game.cards?.includes(card));
+          const wins = withCard.filter((r) => soleWinner(r, p)).length;
+          if (wins >= 1 && (!best || wins / withCard.length > best.wins / best.games || (wins / withCard.length === best.wins / best.games && wins > best.wins))) {
+            best = { card, wins, games: withCard.length };
+          }
+        }
+        return { text: best ? `${best.card} (${best.games} oyunda ${best.wins} galibiyet)` : NONE };
+      },
+      null,
+    ),
+    row("📅", "Bu ayki galibiyetleri", (p, mine) => {
+      const n = mine.filter((r) => r.game.playedOn.startsWith(thisMonth) && soleWinner(r, p)).length;
+      return { text: `${n}`, value: n };
+    }),
+  ];
 }

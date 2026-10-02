@@ -1,8 +1,27 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
-import { KB_CARD_NAMES, MAX_GOLD, MAX_PLAYERS, type Game, type Mutation, type Scoreboard } from "@/lib/scoreboard";
-import { formatDay, funFacts, outcomes, playerStats, todayLocal, type Outcome } from "@/lib/stats";
+import {
+  KB_CARD_NAMES,
+  MAX_GOLD,
+  MAX_PLAYERS,
+  needsSetup,
+  type Game,
+  type Mutation,
+  type Scoreboard,
+} from "@/lib/scoreboard";
+import {
+  activePlayers,
+  comparisons,
+  formatDay,
+  outcomes,
+  playerStats,
+  sharedFacts,
+  todayLocal,
+  type Comparison,
+  type Fact,
+  type Outcome,
+} from "@/lib/stats";
 import { SiteNav } from "./SiteNav";
 
 type Toast = { text: string; undo?: Game };
@@ -44,7 +63,11 @@ export function ScoreTracker() {
 
   const results = useMemo(() => (board ? outcomes(board) : []), [board]);
   const stats = useMemo(() => (board ? playerStats(board, results) : []), [board, results]);
-  const facts = useMemo(() => (board ? funFacts(board, results, stats) : []), [board, results, stats]);
+  const facts = useMemo(() => sharedFacts(results), [results]);
+  const rows = useMemo(
+    () => (board ? comparisons(activePlayers(board, stats), results) : []),
+    [board, stats, results],
+  );
 
   const onSaved = (before: Outcome[], after: Scoreboard, gameId: string) => {
     const all = outcomes(after);
@@ -90,31 +113,13 @@ export function ScoreTracker() {
 
       {!board && !loadError && <p className="loading">Skorlar yükleniyor…</p>}
 
-      {board && (
+      {board && needsSetup(board) && <SetupCard mutate={mutate} />}
+
+      {board && !needsSetup(board) && (
         <main className="score-main">
           <Leaderboard stats={stats} totalGames={results.length} />
           <AddGameForm board={board} mutate={mutate} onSaved={(after, id) => onSaved(results, after, id)} />
-          {facts.length > 0 && (
-            <section aria-labelledby="facts-title">
-              <h2 id="facts-title" className="section-title">
-                İlginç istatistikler
-              </h2>
-              <div className="facts">
-                {facts.map((f) => (
-                  <article key={f.title} className="fact">
-                    <span className="fact-icon" aria-hidden="true">
-                      {f.icon}
-                    </span>
-                    <div>
-                      <h3>{f.title}</h3>
-                      <p>{f.text}</p>
-                    </div>
-                  </article>
-                ))}
-              </div>
-            </section>
-          )}
-          {results.length > 0 && <PlayerTable stats={stats} />}
+          {results.length > 0 && <Stats facts={facts} rows={rows} />}
           {results.length > 0 && (
             <History
               results={results}
@@ -146,6 +151,109 @@ export function ScoreTracker() {
         </div>
       )}
     </div>
+  );
+}
+
+function SetupCard({ mutate }: { mutate: (m: Mutation) => Promise<Scoreboard> }) {
+  const [names, setNames] = useState(["", ""]);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const ready = names.every((n) => n.trim());
+
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!ready || saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await mutate({ type: "setupPlayers", names });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Kaydedilemedi.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="panel setup" aria-labelledby="setup-title">
+      <h2 id="setup-title" className="panel-title">
+        Önce isimlerinizi yazın
+      </h2>
+      <p className="setup-lede">Skorlar ve istatistikler bu isimlerle tutulacak. Sonradan değiştirebilirsiniz.</p>
+      <form onSubmit={onSubmit}>
+        {names.map((value, i) => (
+          <label key={i} className="setup-field" style={{ "--player": i === 0 ? "#d9822b" : "#3a6fb0" } as CSSProperties}>
+            <span>
+              <span className="dot" aria-hidden="true" /> {i + 1}. oyuncu
+            </span>
+            <input
+              value={value}
+              maxLength={24}
+              autoComplete="off"
+              placeholder={i === 0 ? "örn. Anne" : "örn. Baba"}
+              onChange={(e) => setNames((prev) => prev.map((n, j) => (j === i ? e.target.value : n)))}
+            />
+          </label>
+        ))}
+        {error && (
+          <p className="notice" role="alert">
+            {error}
+          </p>
+        )}
+        <button type="submit" className="send send-wide" disabled={!ready || saving}>
+          {saving ? "Kaydediliyor…" : "Başla"}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function Stats({ facts, rows }: { facts: Fact[]; rows: Comparison[] }) {
+  return (
+    <section aria-labelledby="facts-title">
+      <h2 id="facts-title" className="section-title">
+        İlginç istatistikler
+      </h2>
+      {facts.length > 0 && (
+        <div className="facts">
+          {facts.map((f) => (
+            <article key={f.title} className="fact">
+              <span className="fact-icon" aria-hidden="true">
+                {f.icon}
+              </span>
+              <div>
+                <h3>{f.title}</h3>
+                <p>{f.text}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      <h3 className="subsection-title">Kim, hangi rekorda?</h3>
+      <div className="compare">
+        {rows.map((row) => (
+          <article key={row.title} className="compare-row">
+            <h4>
+              <span aria-hidden="true">{row.icon}</span> {row.title}
+            </h4>
+            <div className="compare-cells" style={{ "--cols": row.cells.length } as CSSProperties}>
+              {row.cells.map((c) => (
+                <div
+                  key={c.player.id}
+                  className={`compare-cell${c.best ? " is-best" : ""}`}
+                  style={{ "--player": c.player.color } as CSSProperties}
+                >
+                  <span className="compare-name">
+                    <span className="dot" aria-hidden="true" /> {c.player.name}
+                    {c.best && <span className="visually-hidden"> (önde)</span>}
+                  </span>
+                  <span className="compare-value">{c.text}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -324,49 +432,6 @@ function AddGameForm({
           {saving ? "Kaydediliyor…" : "Kaydet"}
         </button>
       </form>
-    </section>
-  );
-}
-
-function PlayerTable({ stats }: { stats: ReturnType<typeof playerStats> }) {
-  const shown = stats.filter((s) => s.played > 0);
-  const rows: [string, (s: (typeof shown)[number]) => string][] = [
-    ["Ortalama altın", (s) => new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 1 }).format(s.avgGold)],
-    ["En yüksek skor", (s) => String(s.bestGold)],
-    ["Toplam altın", (s) => new Intl.NumberFormat("tr-TR").format(s.totalGold)],
-    ["En uzun seri", (s) => String(s.longestStreak)],
-  ];
-  return (
-    <section aria-labelledby="table-title">
-      <h2 id="table-title" className="section-title">
-        Oyuncu karnesi
-      </h2>
-      <div className="table-wrap">
-        <table className="stats-table">
-          <thead>
-            <tr>
-              <th scope="col">
-                <span className="visually-hidden">İstatistik</span>
-              </th>
-              {shown.map((s) => (
-                <th key={s.player.id} scope="col" style={{ "--player": s.player.color } as CSSProperties}>
-                  <span className="dot" aria-hidden="true" /> {s.player.name}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(([label, value]) => (
-              <tr key={label}>
-                <th scope="row">{label}</th>
-                {shown.map((s) => (
-                  <td key={s.player.id}>{value(s)}</td>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </section>
   );
 }

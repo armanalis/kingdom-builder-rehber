@@ -15,11 +15,18 @@ export type Game = {
   cards?: string[];
 };
 
-export type Scoreboard = { version: 1; players: Player[]; games: Game[] };
+export type Scoreboard = {
+  version: 1;
+  players: Player[];
+  games: Game[];
+  /** True once the two players have entered their own names. */
+  setupDone?: boolean;
+};
 
 export type Mutation =
   | { type: "addGame"; game: Partial<Game> }
   | { type: "deleteGame"; id: string }
+  | { type: "setupPlayers"; names: string[] }
   | { type: "addPlayer"; name: string }
   | { type: "renamePlayer"; id: string; name: string };
 
@@ -46,11 +53,15 @@ export function emptyScoreboard(): Scoreboard {
   return {
     version: 1,
     players: [
-      { id: "anne", name: "Anne", color: PLAYER_COLORS[0] },
-      { id: "baba", name: "Baba", color: PLAYER_COLORS[1] },
+      { id: "anne", name: "1. oyuncu", color: PLAYER_COLORS[0] },
+      { id: "baba", name: "2. oyuncu", color: PLAYER_COLORS[1] },
     ],
     games: [],
   };
+}
+
+export function needsSetup(board: Scoreboard) {
+  return !board.setupDone && board.games.length === 0;
 }
 
 export function sortGames(games: Game[]): Game[] {
@@ -104,6 +115,15 @@ export function applyMutation(board: Scoreboard, m: Mutation): Scoreboard {
         ...(cards.length ? { cards } : {}),
       };
       return { ...board, games: sortGames([...board.games, game]) };
+    }
+    case "setupPlayers": {
+      const names = Array.isArray(m.names) ? m.names.map(cleanName) : [];
+      if (names.length !== 2) throw new ScoreboardError("İki isim girilmeli.");
+      if (names[0].toLocaleLowerCase("tr") === names[1].toLocaleLowerCase("tr")) {
+        throw new ScoreboardError("İki isim farklı olmalı.");
+      }
+      const players = board.players.map((p, i) => (i < 2 ? { ...p, name: names[i] } : p));
+      return { ...board, players, setupDone: true };
     }
     case "deleteGame":
       return { ...board, games: board.games.filter((g) => g.id !== m.id) };
