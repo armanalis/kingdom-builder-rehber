@@ -1,3 +1,4 @@
+import type { Messages } from "./i18n";
 import { sortGames, type Game, type Player, type Scoreboard } from "./scoreboard";
 
 export type Outcome = {
@@ -25,7 +26,6 @@ export type Comparison = {
   cells: { player: Player; text: string; best: boolean }[];
 };
 
-const WEEKDAYS = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 const BIG_WIN = 30;
 const NONE = "—";
 
@@ -34,12 +34,12 @@ export function parseDay(day: string) {
   return new Date(y, m - 1, d);
 }
 
-export function formatDay(day: string) {
-  return new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "long", year: "numeric" }).format(parseDay(day));
+export function formatDay(day: string, locale: string) {
+  return new Intl.DateTimeFormat(locale, { day: "numeric", month: "long", year: "numeric" }).format(parseDay(day));
 }
 
-const shortDay = (day: string) =>
-  new Intl.DateTimeFormat("tr-TR", { day: "numeric", month: "short" }).format(parseDay(day));
+const shortDay = (day: string, locale: string) =>
+  new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(parseDay(day));
 
 export function todayLocal() {
   const now = new Date();
@@ -47,7 +47,7 @@ export function todayLocal() {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-const fmt = (n: number) => new Intl.NumberFormat("tr-TR", { maximumFractionDigits: 1 }).format(n);
+const fmt = (n: number, locale: string) => new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(n);
 
 function dayDiff(a: string, b: string) {
   return Math.round((parseDay(b).getTime() - parseDay(a).getTime()) / 86_400_000);
@@ -90,7 +90,9 @@ export function activePlayers(board: Scoreboard, stats: PlayerStats[]) {
 }
 
 /** Highlights about the whole game history (not tied to one player). */
-export function sharedFacts(results: Outcome[]): Fact[] {
+export function sharedFacts(results: Outcome[], t: Messages): Fact[] {
+  const s = t.stats;
+  const day = (d: string) => formatDay(d, t.locale);
   const facts: Fact[] = [];
   if (results.length === 0) return facts;
   const decided = results.filter((r) => r.winners.length === 1);
@@ -102,24 +104,16 @@ export function sharedFacts(results: Outcome[]): Fact[] {
     const champ = last.winners[0];
     let n = 0;
     for (let i = results.length - 1; i >= 0 && soleWinner(results[i], champ); i--) n++;
-    if (n >= 2) facts.push({ icon: "🔥", title: "Seri devam ediyor", text: `${champ.name} son ${n} oyunu üst üste kazandı.` });
+    if (n >= 2) facts.push({ icon: "🔥", title: s.streakNowTitle, text: s.streakNow(champ.name, n) });
   }
 
   if (decided.length) {
     const record = decided.reduce((a, b) => (b.margin > a.margin ? b : a));
-    facts.push({
-      icon: "🏆",
-      title: "Tüm zamanların rekor farkı",
-      text: `${vs(record)} — ${record.margin} altın fark (${formatDay(record.game.playedOn)}).`,
-    });
+    facts.push({ icon: "🏆", title: s.recordTitle, text: s.record(vs(record), record.margin, day(record.game.playedOn)) });
   }
   if (decided.length >= 2) {
     const closest = decided.reduce((a, b) => (b.margin < a.margin ? b : a));
-    facts.push({
-      icon: "⚖️",
-      title: "En çekişmeli oyun",
-      text: `${vs(closest)} — sadece ${closest.margin} altın fark (${formatDay(closest.game.playedOn)}).`,
-    });
+    facts.push({ icon: "⚖️", title: s.closestTitle, text: s.closest(vs(closest), closest.margin, day(closest.game.playedOn)) });
   }
 
   const days = [...new Set(results.map((r) => r.game.playedOn))];
@@ -131,31 +125,23 @@ export function sharedFacts(results: Outcome[]): Fact[] {
   }
   const currentRun = dayDiff(days.at(-1)!, todayLocal()) <= 1 ? run : 0;
   if (currentRun >= 2) {
-    facts.push({
-      icon: "🌙",
-      title: "Oyun gecesi serisi",
-      text: `${currentRun} gecedir aralıksız oynuyorsunuz.${bestRun > currentRun ? ` Rekor: ${bestRun} gece.` : ""}`,
-    });
+    facts.push({ icon: "🌙", title: s.nightRunTitle, text: s.nightRun(currentRun, bestRun) });
   } else if (bestRun >= 3) {
-    facts.push({ icon: "🌙", title: "Oyun gecesi rekoru", text: `En uzun aralıksız seri: ${bestRun} gece.` });
+    facts.push({ icon: "🌙", title: s.nightRecordTitle, text: s.nightRecord(bestRun) });
   }
 
   if (results.length >= 5) {
     const counts = new Array(7).fill(0);
     for (const day of days) counts[parseDay(day).getDay()]++;
     const max = Math.max(...counts);
-    const favorites = WEEKDAYS.filter((_, i) => counts[i] === max);
-    facts.push({ icon: "🗓️", title: "Favori oyun günü", text: `En çok ${favorites.join(" ve ")} günleri oynuyorsunuz.` });
+    const favorites = s.weekdays.filter((_, i) => counts[i] === max);
+    facts.push({ icon: "🗓️", title: s.favDayTitle, text: s.favDay(favorites.join(` ${t.and} `)) });
   }
 
   const draws = results.filter((r) => r.winners.length > 1);
   if (draws.length) {
     const d = draws.at(-1)!;
-    facts.push({
-      icon: "🤝",
-      title: "Beraberlik",
-      text: `${draws.length} oyun berabere bitti. Sonuncusu ${d.ranked[0].gold} – ${d.ranked[0].gold} (${formatDay(d.game.playedOn)}).`,
-    });
+    facts.push({ icon: "🤝", title: s.drawsTitle, text: s.draws(draws.length, d.ranked[0].gold, day(d.game.playedOn)) });
   }
 
   return facts;
@@ -164,8 +150,11 @@ export function sharedFacts(results: Outcome[]): Fact[] {
 type Cell = { text: string; value?: number };
 
 /** Per-player statistics, shown side by side so every player gets their own number. */
-export function comparisons(players: Player[], results: Outcome[]): Comparison[] {
+export function comparisons(players: Player[], results: Outcome[], t: Messages): Comparison[] {
   if (results.length === 0) return [];
+  const s = t.stats;
+  const short = (d: string) => shortDay(d, t.locale);
+  const num = (n: number) => fmt(n, t.locale);
   const thisMonth = todayLocal().slice(0, 7);
 
   const row = (
@@ -205,72 +194,72 @@ export function comparisons(players: Player[], results: Outcome[]): Comparison[]
   };
 
   return [
-    row("👑", "En uzun galibiyet serisi", (p, mine) => {
+    row("👑", s.longestStreak, (p, mine) => {
       const { best } = streaks(p, mine, (r) => soleWinner(r, p));
-      return { text: best ? `${best} maç` : NONE, value: best };
+      return { text: best ? s.matches(best) : NONE, value: best };
     }),
-    row("🔥", "Şu anki galibiyet serisi", (p, mine) => {
+    row("🔥", s.currentStreak, (p, mine) => {
       const { current } = streaks(p, mine, (r) => soleWinner(r, p));
-      return { text: current ? `${current} maç` : NONE, value: current };
+      return { text: current ? s.matches(current) : NONE, value: current };
     }),
-    row("🏆", "En büyük galibiyeti", (p, _mine, wins) => {
+    row("🏆", s.biggestWin, (p, _mine, wins) => {
       if (!wins.length) return { text: NONE };
       const r = wins.reduce((a, b) => (b.margin > a.margin ? b : a));
-      return { text: `+${r.margin} (${scoreLine(r, p)}, ${shortDay(r.game.playedOn)})`, value: r.margin };
+      return { text: `+${r.margin} (${scoreLine(r, p)}, ${short(r.game.playedOn)})`, value: r.margin };
     }),
     row(
       "🤏",
-      "Kıl payı galibiyeti",
+      s.closestWin,
       (p, _mine, wins) => {
         if (!wins.length) return { text: NONE };
         const r = wins.reduce((a, b) => (b.margin < a.margin ? b : a));
-        return { text: `+${r.margin} (${scoreLine(r, p)}, ${shortDay(r.game.playedOn)})`, value: r.margin };
+        return { text: `+${r.margin} (${scoreLine(r, p)}, ${short(r.game.playedOn)})`, value: r.margin };
       },
       null,
     ),
-    row("📏", "Kazanınca ortalama fark", (_p, _mine, wins) => {
+    row("📏", s.avgWinMargin, (_p, _mine, wins) => {
       if (!wins.length) return { text: NONE };
-      const avg = wins.reduce((s, r) => s + r.margin, 0) / wins.length;
-      return { text: `+${fmt(avg)} altın`, value: avg };
+      const avg = wins.reduce((sum, r) => sum + r.margin, 0) / wins.length;
+      return { text: `+${s.goldAmount(num(avg))}`, value: avg };
     }),
-    row(`💥`, `${BIG_WIN}+ farkla ezici galibiyet`, (_p, _mine, wins) => {
+    row("💥", s.crushes(BIG_WIN), (_p, _mine, wins) => {
       const n = wins.filter((r) => r.margin >= BIG_WIN).length;
-      return { text: `${n} kez`, value: n };
+      return { text: s.times(n), value: n };
     }),
-    row("💰", "En yüksek skoru", (p, mine) => {
+    row("💰", s.highScore, (p, mine) => {
       if (!mine.length) return { text: NONE };
       const r = mine.reduce((a, b) => (goldOf(b, p) > goldOf(a, p) ? b : a));
-      return { text: `${goldOf(r, p)} altın (${shortDay(r.game.playedOn)})`, value: goldOf(r, p) };
+      return { text: `${s.goldAmount(String(goldOf(r, p)))} (${short(r.game.playedOn)})`, value: goldOf(r, p) };
     }),
     row(
       "🫣",
-      "En düşük skoru",
+      s.lowScore,
       (p, mine) => {
         if (!mine.length) return { text: NONE };
         const r = mine.reduce((a, b) => (goldOf(b, p) < goldOf(a, p) ? b : a));
-        return { text: `${goldOf(r, p)} altın (${shortDay(r.game.playedOn)})`, value: goldOf(r, p) };
+        return { text: `${s.goldAmount(String(goldOf(r, p)))} (${short(r.game.playedOn)})`, value: goldOf(r, p) };
       },
       null,
     ),
-    row("📊", "Ortalama skoru", (p, mine) => {
+    row("📊", s.avgScore, (p, mine) => {
       if (!mine.length) return { text: NONE };
-      const avg = mine.reduce((s, r) => s + goldOf(r, p), 0) / mine.length;
-      return { text: `${fmt(avg)} altın`, value: avg };
+      const avg = mine.reduce((sum, r) => sum + goldOf(r, p), 0) / mine.length;
+      return { text: s.goldAmount(num(avg)), value: avg };
     }),
-    row("🪙", "Toplam altın", (p, mine) => {
-      const total = mine.reduce((s, r) => s + goldOf(r, p), 0);
-      return { text: new Intl.NumberFormat("tr-TR").format(total), value: total };
+    row("🪙", s.totalGold, (p, mine) => {
+      const total = mine.reduce((sum, r) => sum + goldOf(r, p), 0);
+      return { text: num(total), value: total };
     }),
     row(
       "🌧️",
-      "En uzun kayıp serisi",
+      s.longestLosing,
       (p, mine) => {
         const { best } = streaks(p, mine, (r) => !r.winners.some((w) => w.id === p.id));
-        return { text: best ? `${best} maç` : NONE, value: best };
+        return { text: best ? s.matches(best) : NONE, value: best };
       },
       null,
     ),
-    row("⚔️", "Rövanş (kaybettikten sonraki oyun)", (p) => {
+    row("⚔️", s.revenge, (p) => {
       let chances = 0;
       let revenges = 0;
       for (let i = 0; i < results.length - 1; i++) {
@@ -281,11 +270,11 @@ export function comparisons(players: Player[], results: Outcome[]): Comparison[]
       }
       if (!chances) return { text: NONE };
       const rate = revenges / chances;
-      return { text: `${chances} denemede ${revenges} (%${Math.round(rate * 100)})`, value: rate };
+      return { text: s.revengeText(chances, revenges, Math.round(rate * 100)), value: rate };
     }),
     row(
       "🃏",
-      "Şanslı kartı",
+      s.luckyCard,
       (p, mine) => {
         let best: { card: string; wins: number; games: number } | null = null;
         for (const card of new Set(mine.flatMap((r) => r.game.cards ?? []))) {
@@ -295,11 +284,11 @@ export function comparisons(players: Player[], results: Outcome[]): Comparison[]
             best = { card, wins, games: withCard.length };
           }
         }
-        return { text: best ? `${best.card} (${best.games} oyunda ${best.wins} galibiyet)` : NONE };
+        return { text: best ? s.luckyText(best.card, best.games, best.wins) : NONE };
       },
       null,
     ),
-    row("📅", "Bu ayki galibiyetleri", (p, mine) => {
+    row("📅", s.monthWins, (p, mine) => {
       const n = mine.filter((r) => r.game.playedOn.startsWith(thisMonth) && soleWinner(r, p)).length;
       return { text: `${n}`, value: n };
     }),

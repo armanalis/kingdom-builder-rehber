@@ -1,6 +1,7 @@
 import { streamText, type ModelMessage } from "ai";
-import { SYSTEM_PROMPT } from "@/lib/rules";
-import { ERROR_MARKER, friendlyError } from "@/lib/errors";
+import { buildSystemPrompt } from "@/lib/rules";
+import { ERROR_MARKER, errorCode } from "@/lib/errors";
+import { isLang } from "@/lib/i18n";
 
 export const maxDuration = 60;
 
@@ -34,20 +35,20 @@ function parseMessages(input: unknown): ModelMessage[] | null {
 }
 
 export async function POST(req: Request) {
-  let body: unknown;
+  let body: { messages?: unknown; lang?: unknown };
   try {
     body = await req.json();
   } catch {
-    return Response.json({ error: "Geçersiz istek." }, { status: 400 });
+    return Response.json({ error: "bad_request" }, { status: 400 });
   }
-  const messages = parseMessages((body as { messages?: unknown })?.messages);
+  const messages = parseMessages(body?.messages);
   if (!messages) {
-    return Response.json({ error: "Soru boş ya da çok uzun." }, { status: 400 });
+    return Response.json({ error: "bad_request" }, { status: 400 });
   }
 
   const result = streamText({
     model: MODEL,
-    instructions: SYSTEM_PROMPT,
+    instructions: buildSystemPrompt(isLang(body.lang) ? body.lang : "tr"),
     messages,
     reasoning: "low",
     maxOutputTokens: 4000,
@@ -64,7 +65,7 @@ export async function POST(req: Request) {
         }
       } catch (error) {
         console.error("ask failed", error);
-        controller.enqueue(encoder.encode(ERROR_MARKER + friendlyError(error)));
+        controller.enqueue(encoder.encode(ERROR_MARKER + errorCode(error)));
       } finally {
         controller.close();
       }

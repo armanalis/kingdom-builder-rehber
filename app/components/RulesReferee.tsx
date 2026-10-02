@@ -11,8 +11,9 @@ import {
 } from "react";
 import Markdown from "react-markdown";
 import { ERROR_MARKER } from "@/lib/errors";
-import { QUICK_QUESTIONS } from "@/lib/cards";
+import { errorText, type ErrorCode, type Lang } from "@/lib/i18n";
 import { CardGuide } from "./CardGuide";
+import { useI18n } from "./i18n";
 import { SiteNav } from "./SiteNav";
 import { canSpeak, speak, stopSpeaking, unlockSpeech } from "./speak";
 import { useSpeechInput } from "./useSpeechInput";
@@ -21,8 +22,9 @@ type Entry = {
   id: string;
   question: string;
   answer: string;
+  lang: Lang;
   state: "streaming" | "done" | "error";
-  error?: string;
+  error?: ErrorCode;
 };
 
 const HISTORY_TURNS = 3;
@@ -38,10 +40,17 @@ const subscribeAutoRead = (listener: () => void) => {
 const getAutoRead = () => localStorage.getItem(AUTO_READ_KEY) !== "0";
 const subscribeNever = () => () => {};
 
+class AskError extends Error {
+  constructor(public code: ErrorCode) {
+    super(code);
+  }
+}
+
 export function RulesReferee() {
+  const { lang, t } = useI18n();
   const [entries, setEntries] = useState<Entry[]>([]);
   const [input, setInput] = useState("");
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState<ErrorCode | null>(null);
   const autoRead = useSyncExternalStore(subscribeAutoRead, getAutoRead, () => true);
   const ttsAvailable = useSyncExternalStore(subscribeNever, canSpeak, () => false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
@@ -56,9 +65,9 @@ export function RulesReferee() {
   const update = (id: string, patch: Partial<Entry>) =>
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
 
-  const readAloud = useCallback((entry: Pick<Entry, "id" | "answer">) => {
+  const readAloud = useCallback((entry: Pick<Entry, "id" | "answer" | "lang">) => {
     setSpeakingId(entry.id);
-    speak(entry.answer, () => setSpeakingId((cur) => (cur === entry.id ? null : cur)));
+    speak(entry.answer, entry.lang, () => setSpeakingId((cur) => (cur === entry.id ? null : cur)));
   }, []);
 
   const ask = useCallback(
@@ -71,10 +80,10 @@ export function RulesReferee() {
       abortRef.current = controller;
       stopSpeaking();
       setSpeakingId(null);
-      setNotice("");
+      setNotice(null);
       setInput("");
 
-      // Previous answered questions give context for follow-ups ("peki Lords'ta?").
+      // Previous answered questions give context for follow-ups ("and for Lords?").
       const history = entriesRef.current
         .filter((e) => e.state === "done")
         .slice(0, HISTORY_TURNS)
@@ -85,19 +94,21 @@ export function RulesReferee() {
         ]);
 
       const id = crypto.randomUUID();
-      setEntries((prev) => [{ id, question, answer: "", state: "streaming" as const }, ...prev].slice(0, MAX_ENTRIES));
+      setEntries((prev) =>
+        [{ id, question, answer: "", lang, state: "streaming" as const }, ...prev].slice(0, MAX_ENTRIES),
+      );
       requestAnimationFrame(() => answersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
 
       try {
         const res = await fetch("/api/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ messages: [...history, { role: "user", content: question }] }),
+          body: JSON.stringify({ lang, messages: [...history, { role: "user", content: question }] }),
           signal: controller.signal,
         });
         if (!res.ok || !res.body) {
-          const data = (await res.json().catch(() => ({}))) as { error?: string };
-          throw new Error(data.error ?? "Bir sorun oluştu. Lütfen tekrar deneyin.");
+          const data = (await res.json().catch(() => ({}))) as { error?: ErrorCode };
+          throw new AskError(data.error ?? "generic");
         }
 
         const reader = res.body.getReader();
@@ -112,27 +123,24 @@ export function RulesReferee() {
         }
 
         const markerAt = text.indexOf(ERROR_MARKER);
-        if (markerAt >= 0) throw new Error(text.slice(markerAt + ERROR_MARKER.length));
+        if (markerAt >= 0) throw new AskError(text.slice(markerAt + ERROR_MARKER.length) as ErrorCode);
         const answer = text.trim();
-        if (!answer) throw new Error("Cevap alınamadı. Lütfen tekrar deneyin.");
+        if (!answer) throw new AskError("empty_answer");
 
         update(id, { answer, state: "done" });
-        if (viaVoice && getAutoRead()) readAloud({ id, answer });
+        if (viaVoice && getAutoRead()) readAloud({ id, answer, lang });
       } catch (e) {
         if (controller.signal.aborted) return;
-        update(id, {
-          state: "error",
-          error: e instanceof Error ? e.message : "Bir sorun oluştu. Lütfen tekrar deneyin.",
-        });
+        update(id, { state: "error", error: e instanceof AskError ? e.code : "generic" });
       }
     },
-    [readAloud],
+    [lang, readAloud],
   );
 
-  const speech = useSpeechInput((text) => void ask(text, true), setNotice);
+  const speech = useSpeechInput(lang, (text) => void ask(text, true), setNotice);
 
   const onMic = () => {
-    setNotice("");
+    setNotice(null);
     stopSpeaking();
     setSpeakingId(null);
     unlockSpeech();
@@ -156,33 +164,29 @@ export function RulesReferee() {
     autoReadListeners.forEach((listener) => listener());
   };
 
+  const r = t.rules;
   const listening = speech.status === "listening";
   const transcribing = speech.status === "transcribing";
-  const micLabel = listening ? "Dinlemeyi bitir" : "Sesli soru sor";
-  const statusText = transcribing
-    ? "Söyledikleriniz yazıya dökülüyor…"
-    : listening
-      ? "Dinliyorum… Bitince susmanız yeterli."
-      : "Mikrofona dokunun ve sorunuzu söyleyin";
+  const statusText = transcribing ? r.statusTranscribing : listening ? r.statusListening : r.statusIdle;
 
   return (
-    <div className="page">
+    <div className="page page-rules">
       <SiteNav />
       <header className="hero">
         <div className="terrain-strip" aria-hidden="true">
-          {["grass", "canyon", "desert", "flower", "forest"].map((t) => (
-            <span key={t} className={`hex hex-${t}`} />
+          {["grass", "canyon", "desert", "flower", "forest"].map((x) => (
+            <span key={x} className={`hex hex-${x}`} />
           ))}
         </div>
         <p className="eyebrow" lang="en">
           Kingdom Builder
         </p>
-        <h1>Kural Hakemi</h1>
-        <p className="lede">Oyunda takıldığınız kuralı sorun, resmi kurallara göre net cevap alın.</p>
+        <h1>{r.title}</h1>
+        <p className="lede">{r.lede}</p>
       </header>
 
-      <main>
-        <section className="ask-panel" aria-label="Soru sor">
+      <main className="rules-main">
+        <section className="ask-panel area-ask" aria-label={r.askAria}>
           {speech.supported && (
             <div className="mic-area">
               <button
@@ -190,7 +194,7 @@ export function RulesReferee() {
                 className={`mic${listening ? " is-listening" : ""}${transcribing ? " is-busy" : ""}`}
                 onClick={onMic}
                 disabled={transcribing}
-                aria-label={micLabel}
+                aria-label={listening ? r.micStop : r.micStart}
                 aria-pressed={listening}
               >
                 {transcribing ? <span className="spinner" aria-hidden="true" /> : <MicIcon listening={listening} />}
@@ -204,31 +208,31 @@ export function RulesReferee() {
 
           {notice && (
             <p className="notice" role="alert">
-              {notice}
+              {errorText(t, notice)}
             </p>
           )}
 
           <form className="ask-form" onSubmit={onSubmit}>
             <label htmlFor="question" className="visually-hidden">
-              Sorunuz
+              {r.inputLabel}
             </label>
             <textarea
               id="question"
               rows={2}
               maxLength={800}
-              placeholder={speech.supported ? "…ya da buraya yazın" : "Sorunuzu buraya yazın"}
+              placeholder={speech.supported ? r.placeholderWithMic : r.placeholderNoMic}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={onKeyDown}
               enterKeyHint="send"
             />
             <button type="submit" className="send" disabled={!input.trim()}>
-              Sor
+              {r.send}
             </button>
           </form>
 
-          <div className="chips" aria-label="Örnek sorular">
-            {QUICK_QUESTIONS.map((q) => (
+          <div className="chips" aria-label={r.examplesAria}>
+            {r.quickQuestions.map((q) => (
               <button key={q} type="button" className="chip" onClick={() => void ask(q)}>
                 {q}
               </button>
@@ -238,13 +242,13 @@ export function RulesReferee() {
           {ttsAvailable && (
             <label className="toggle">
               <input type="checkbox" checked={autoRead} onChange={(e) => toggleAutoRead(e.target.checked)} />
-              <span>Sesli sorulara cevabı sesli de oku</span>
+              <span>{r.autoRead}</span>
             </label>
           )}
         </section>
 
         {entries.length > 0 && (
-          <section className="answers" ref={answersRef} aria-label="Cevaplar">
+          <section className="answers area-answers" ref={answersRef} aria-label={r.answersAria}>
             {entries.map((entry, i) => (
               <article
                 key={entry.id}
@@ -252,11 +256,11 @@ export function RulesReferee() {
                 aria-busy={entry.state === "streaming"}
               >
                 <p className="answer-q">
-                  <span className="tag">Soru</span>
+                  <span className="tag">{r.questionTag}</span>
                   {entry.question}
                 </p>
                 {entry.answer ? (
-                  <div className="answer-body">
+                  <div className="answer-body" lang={entry.lang}>
                     <Markdown>{entry.answer}</Markdown>
                     {entry.state === "streaming" && <span className="caret" aria-hidden="true" />}
                   </div>
@@ -268,15 +272,15 @@ export function RulesReferee() {
                         <i />
                         <i />
                       </span>
-                      Kurallara bakılıyor…
+                      {r.thinking}
                     </p>
                   )
                 )}
                 {entry.state === "error" && (
                   <div className="answer-error" role="alert">
-                    <p>{entry.error}</p>
+                    <p>{errorText(t, entry.error)}</p>
                     <button type="button" className="pill" onClick={() => void ask(entry.question)}>
-                      Tekrar dene
+                      {r.retry}
                     </button>
                   </div>
                 )}
@@ -291,11 +295,11 @@ export function RulesReferee() {
                           setSpeakingId(null);
                         }}
                       >
-                        <SpeakerIcon /> Durdur
+                        <SpeakerIcon /> {r.stop}
                       </button>
                     ) : (
                       <button type="button" className="pill" onClick={() => readAloud(entry)}>
-                        <SpeakerIcon /> Sesli oku
+                        <SpeakerIcon /> {r.readAloud}
                       </button>
                     )}
                   </div>
@@ -309,10 +313,7 @@ export function RulesReferee() {
       </main>
 
       <footer className="footer">
-        <p>
-          Cevaplar Queen Games&apos;in resmi kural kitabına dayanır. Yapay zekâ nadiren yanılabilir; emin
-          olamazsanız aşağıdaki kart rehberine bakın.
-        </p>
+        <p>{r.footer}</p>
       </footer>
     </div>
   );

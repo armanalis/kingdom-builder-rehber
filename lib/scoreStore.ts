@@ -6,9 +6,11 @@ import { applyMutation, emptyScoreboard, type Mutation, type Scoreboard } from "
 
 // Production: one private JSON document in Vercel Blob, updated with optimistic
 // concurrency (ifMatch). Local development without a Blob token: a JSON file.
-const BLOB_PATH = "kingdom-builder/scoreboard.json";
+// SCOREBOARD_STORE=file forces the local file (e.g. to test without touching real data).
+const BLOB_PATH = process.env.SCOREBOARD_BLOB_PATH ?? "kingdom-builder/scoreboard.json";
 const LOCAL_FILE = path.join(process.cwd(), ".data", "scoreboard.json");
-const blobConfigured = () => Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
+const blobConfigured = () =>
+  process.env.SCOREBOARD_STORE !== "file" && Boolean(process.env.BLOB_READ_WRITE_TOKEN || process.env.BLOB_STORE_ID);
 
 type Snapshot = { board: Scoreboard; etag?: string };
 

@@ -1,16 +1,18 @@
 "use client";
 
-function plainText(markdown: string) {
+import type { Lang } from "@/lib/i18n";
+
+function plainText(markdown: string, lang: Lang) {
   return markdown
     .replace(/[*_`#>]/g, "")
     .replace(/^\s*[-•]\s+/gm, "")
-    .replace(/×/g, " çarpı ")
+    .replace(/×/g, lang === "tr" ? " çarpı " : " times ")
     .replace(/\s+\n/g, "\n")
     .trim();
 }
 
-function turkishVoice() {
-  return window.speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith("tr"));
+function voiceFor(lang: Lang) {
+  return window.speechSynthesis.getVoices().find((v) => v.lang.toLowerCase().startsWith(lang));
 }
 
 export function canSpeak() {
@@ -25,12 +27,12 @@ export function unlockSpeech() {
   window.speechSynthesis.speak(u);
 }
 
-export function speak(markdown: string, onEnd?: () => void) {
+export function speak(markdown: string, lang: Lang, onEnd?: () => void) {
   if (!canSpeak()) return;
   window.speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(plainText(markdown));
-  u.lang = "tr-TR";
-  const voice = turkishVoice();
+  const u = new SpeechSynthesisUtterance(plainText(markdown, lang));
+  u.lang = lang === "tr" ? "tr-TR" : "en-US";
+  const voice = voiceFor(lang);
   if (voice) u.voice = voice;
   u.rate = 1;
   u.onend = () => onEnd?.();

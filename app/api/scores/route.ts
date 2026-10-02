@@ -10,7 +10,7 @@ export async function GET() {
     return Response.json(await loadScoreboard(), { headers: noStore });
   } catch (error) {
     console.error("load scoreboard failed", error);
-    return Response.json({ error: "Skorlar yüklenemedi." }, { status: 500, headers: noStore });
+    return Response.json({ error: "load_failed" }, { status: 500, headers: noStore });
   }
 }
 
@@ -19,15 +19,15 @@ export async function POST(req: Request) {
   try {
     mutation = (await req.json()) as Mutation;
   } catch {
-    return Response.json({ error: "Geçersiz istek." }, { status: 400 });
+    return Response.json({ error: "generic" }, { status: 400 });
   }
   try {
     return Response.json(await mutateScoreboard(mutation), { headers: noStore });
   } catch (error) {
     if (error instanceof ScoreboardError) {
-      return Response.json({ error: error.message }, { status: 400 });
+      return Response.json({ error: error.code }, { status: 400 });
     }
     console.error("save scoreboard failed", error);
-    return Response.json({ error: "Kaydedilemedi. Lütfen tekrar deneyin." }, { status: 500 });
+    return Response.json({ error: "save_failed" }, { status: 500 });
   }
 }

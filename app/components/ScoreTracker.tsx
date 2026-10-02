@@ -1,15 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
-import {
-  KB_CARD_NAMES,
-  MAX_GOLD,
-  MAX_PLAYERS,
-  needsSetup,
-  type Game,
-  type Mutation,
-  type Scoreboard,
-} from "@/lib/scoreboard";
+import { errorText } from "@/lib/i18n";
+import { KB_CARD_NAMES, MAX_GOLD, MAX_PLAYERS, needsSetup, type Game, type Mutation, type Scoreboard } from "@/lib/scoreboard";
+import { errorCodeOf, fetchScoreboard, sendMutation } from "@/lib/scoresClient";
 import {
   activePlayers,
   comparisons,
@@ -21,83 +15,75 @@ import {
   type Comparison,
   type Fact,
   type Outcome,
+  type PlayerStats,
 } from "@/lib/stats";
+import { useI18n } from "./i18n";
+import { PlayerSetupForm } from "./Onboarding";
 import { SiteNav } from "./SiteNav";
 
 type Toast = { text: string; undo?: Game };
+type Mutate = (m: Mutation) => Promise<Scoreboard>;
 
 export function ScoreTracker() {
+  const { t } = useI18n();
   const [board, setBoard] = useState<Scoreboard | null>(null);
   const [loadError, setLoadError] = useState("");
   const [toast, setToast] = useState<Toast | null>(null);
 
   const load = useCallback(() => {
-    fetch("/api/scores", { cache: "no-store" })
-      .then(async (res) => {
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-        setBoard(data as Scoreboard);
-      })
-      .catch(() => setLoadError("Skorlar yüklenemedi. İnternet bağlantısını kontrol edip tekrar deneyin."));
+    fetchScoreboard().then(setBoard, (err) => setLoadError(errorCodeOf(err)));
   }, []);
 
   useEffect(load, [load]);
 
   useEffect(() => {
     if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), toast.undo ? 10000 : 6000);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setToast(null), toast.undo ? 10000 : 6000);
+    return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const mutate = useCallback(async (mutation: Mutation): Promise<Scoreboard> => {
-    const res = await fetch("/api/scores", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(mutation),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? "Kaydedilemedi.");
-    setBoard(data as Scoreboard);
-    return data as Scoreboard;
+  const mutate = useCallback<Mutate>(async (mutation) => {
+    const next = await sendMutation(mutation);
+    setBoard(next);
+    return next;
   }, []);
 
   const results = useMemo(() => (board ? outcomes(board) : []), [board]);
   const stats = useMemo(() => (board ? playerStats(board, results) : []), [board, results]);
-  const facts = useMemo(() => sharedFacts(results), [results]);
+  const facts = useMemo(() => sharedFacts(results, t), [results, t]);
   const rows = useMemo(
-    () => (board ? comparisons(activePlayers(board, stats), results) : []),
-    [board, stats, results],
+    () => (board ? comparisons(activePlayers(board, stats), results, t) : []),
+    [board, stats, results, t],
   );
 
   const onSaved = (before: Outcome[], after: Scoreboard, gameId: string) => {
-    const all = outcomes(after);
-    const r = all.find((o) => o.game.id === gameId);
+    const r = outcomes(after).find((o) => o.game.id === gameId);
     if (!r) return;
     const prevRecord = Math.max(0, ...before.filter((o) => o.winners.length === 1).map((o) => o.margin));
     const prevHigh = Math.max(0, ...before.flatMap((o) => o.ranked.map((x) => x.gold)));
     let text =
       r.winners.length > 1
-        ? `Kaydedildi: ${r.winners.map((w) => w.name).join(" ve ")} berabere!`
-        : `Kaydedildi: ${r.winners[0].name} kazandı, ${r.margin} altın farkla.`;
-    if (before.length > 0 && r.winners.length === 1 && r.margin > prevRecord) text += " 🏆 Yeni rekor fark!";
-    else if (before.length > 0 && r.ranked[0].gold > prevHigh) text += " 💰 Yeni en yüksek skor!";
+        ? t.scores.savedTie(r.winners.map((w) => w.name).join(` ${t.and} `))
+        : t.scores.savedWin(r.winners[0].name, r.margin);
+    if (before.length > 0 && r.winners.length === 1 && r.margin > prevRecord) text += t.scores.newRecord;
+    else if (before.length > 0 && r.ranked[0].gold > prevHigh) text += t.scores.newHigh;
     setToast({ text });
   };
 
   return (
-    <div className="page">
+    <div className="page page-scores">
       <SiteNav />
       <header className="hero hero-compact">
         <p className="eyebrow" lang="en">
           Kingdom Builder
         </p>
-        <h1>Skor Tablosu</h1>
-        <p className="lede">Her oyundan sonra altınları girin; kim önde, rekorlar ve tuhaf istatistikler burada.</p>
+        <h1>{t.scores.title}</h1>
+        <p className="lede">{t.scores.lede}</p>
       </header>
 
       {loadError && (
         <div className="notice" role="alert">
-          {loadError}{" "}
+          {errorText(t, loadError)}{" "}
           <button
             type="button"
             className="pill"
@@ -106,14 +92,18 @@ export function ScoreTracker() {
               load();
             }}
           >
-            Tekrar dene
+            {t.scores.retry}
           </button>
         </div>
       )}
 
-      {!board && !loadError && <p className="loading">Skorlar yükleniyor…</p>}
+      {!board && !loadError && <p className="loading">{t.scores.loading}</p>}
 
-      {board && needsSetup(board) && <SetupCard mutate={mutate} />}
+      {board && needsSetup(board) && (
+        <section className="panel setup-panel" aria-labelledby="setup-title">
+          <PlayerSetupForm onDone={setBoard} />
+        </section>
+      )}
 
       {board && !needsSetup(board) && (
         <main className="score-main">
@@ -124,8 +114,12 @@ export function ScoreTracker() {
             <History
               results={results}
               onDelete={async (game) => {
-                await mutate({ type: "deleteGame", id: game.id });
-                setToast({ text: `${formatDay(game.playedOn)} oyunu silindi.`, undo: game });
+                try {
+                  await mutate({ type: "deleteGame", id: game.id });
+                  setToast({ text: t.scores.deleted(formatDay(game.playedOn, t.locale)), undo: game });
+                } catch (err) {
+                  setToast({ text: errorText(t, errorCodeOf(err)) });
+                }
               }}
             />
           )}
@@ -142,10 +136,10 @@ export function ScoreTracker() {
               onClick={() => {
                 const game = toast.undo!;
                 setToast(null);
-                void mutate({ type: "addGame", game }).catch(() => setToast({ text: "Geri alınamadı." }));
+                void mutate({ type: "addGame", game }).catch(() => setToast({ text: t.errors.undo_failed }));
               }}
             >
-              Geri al
+              {t.scores.undo}
             </button>
           )}
         </div>
@@ -154,116 +148,13 @@ export function ScoreTracker() {
   );
 }
 
-function SetupCard({ mutate }: { mutate: (m: Mutation) => Promise<Scoreboard> }) {
-  const [names, setNames] = useState(["", ""]);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const ready = names.every((n) => n.trim());
-
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!ready || saving) return;
-    setSaving(true);
-    setError("");
-    try {
-      await mutate({ type: "setupPlayers", names });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Kaydedilemedi.");
-      setSaving(false);
-    }
-  };
-
+function Leaderboard({ stats, totalGames }: { stats: PlayerStats[]; totalGames: number }) {
+  const { t } = useI18n();
+  const maxWins = Math.max(...stats.map((s) => s.wins));
+  const leaders = stats.filter((s) => s.wins === maxWins && maxWins > 0);
   return (
-    <section className="panel setup" aria-labelledby="setup-title">
-      <h2 id="setup-title" className="panel-title">
-        Önce isimlerinizi yazın
-      </h2>
-      <p className="setup-lede">Skorlar ve istatistikler bu isimlerle tutulacak. Sonradan değiştirebilirsiniz.</p>
-      <form onSubmit={onSubmit}>
-        {names.map((value, i) => (
-          <label key={i} className="setup-field" style={{ "--player": i === 0 ? "#d9822b" : "#3a6fb0" } as CSSProperties}>
-            <span>
-              <span className="dot" aria-hidden="true" /> {i + 1}. oyuncu
-            </span>
-            <input
-              value={value}
-              maxLength={24}
-              autoComplete="off"
-              placeholder={i === 0 ? "örn. Anne" : "örn. Baba"}
-              onChange={(e) => setNames((prev) => prev.map((n, j) => (j === i ? e.target.value : n)))}
-            />
-          </label>
-        ))}
-        {error && (
-          <p className="notice" role="alert">
-            {error}
-          </p>
-        )}
-        <button type="submit" className="send send-wide" disabled={!ready || saving}>
-          {saving ? "Kaydediliyor…" : "Başla"}
-        </button>
-      </form>
-    </section>
-  );
-}
-
-function Stats({ facts, rows }: { facts: Fact[]; rows: Comparison[] }) {
-  return (
-    <section aria-labelledby="facts-title">
-      <h2 id="facts-title" className="section-title">
-        İlginç istatistikler
-      </h2>
-      {facts.length > 0 && (
-        <div className="facts">
-          {facts.map((f) => (
-            <article key={f.title} className="fact">
-              <span className="fact-icon" aria-hidden="true">
-                {f.icon}
-              </span>
-              <div>
-                <h3>{f.title}</h3>
-                <p>{f.text}</p>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
-      <h3 className="subsection-title">Kim, hangi rekorda?</h3>
-      <div className="compare">
-        {rows.map((row) => (
-          <article key={row.title} className="compare-row">
-            <h4>
-              <span aria-hidden="true">{row.icon}</span> {row.title}
-            </h4>
-            <div className="compare-cells" style={{ "--cols": row.cells.length } as CSSProperties}>
-              {row.cells.map((c) => (
-                <div
-                  key={c.player.id}
-                  className={`compare-cell${c.best ? " is-best" : ""}`}
-                  style={{ "--player": c.player.color } as CSSProperties}
-                >
-                  <span className="compare-name">
-                    <span className="dot" aria-hidden="true" /> {c.player.name}
-                    {c.best && <span className="visually-hidden"> (önde)</span>}
-                  </span>
-                  <span className="compare-value">{c.text}</span>
-                </div>
-              ))}
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function Leaderboard({ stats, totalGames }: { stats: ReturnType<typeof playerStats>; totalGames: number }) {
-  const active = stats.filter((s) => s.played > 0 || stats.indexOf(s) < 2);
-  const maxWins = Math.max(...active.map((s) => s.wins));
-  const leaders = active.filter((s) => s.wins === maxWins && maxWins > 0);
-  return (
-    <section className="leaderboard" aria-label="Galibiyetler">
-      {active.map((s) => {
+    <section className="leaderboard area-lead" aria-label={t.scores.winsAria}>
+      {stats.map((s) => {
         const leading = leaders.length === 1 && leaders[0] === s;
         return (
           <div
@@ -272,21 +163,22 @@ function Leaderboard({ stats, totalGames }: { stats: ReturnType<typeof playerSta
             style={{ "--player": s.player.color } as CSSProperties}
           >
             {leading && (
-              <span className="crown" aria-label="Önde">
+              <span className="crown" role="img" aria-label={t.scores.leading}>
                 👑
               </span>
             )}
             <span className="leader-name">{s.player.name}</span>
             <span className="leader-wins">{s.wins}</span>
-            <span className="leader-label">galibiyet</span>
+            <span className="leader-label">{t.scores.wins}</span>
             <span className="leader-meta">
-              {s.played} oyun{s.played ? ` · %${Math.round(s.winRate * 100)}` : ""}
-              {s.draws ? ` · ${s.draws} beraberlik` : ""}
+              {t.scores.games(s.played)}
+              {s.played ? ` · ${Math.round(s.winRate * 100)}%` : ""}
+              {s.draws ? ` · ${t.scores.draws(s.draws)}` : ""}
             </span>
           </div>
         );
       })}
-      {totalGames === 0 && <p className="empty">Henüz oyun yok. Aşağıdan ilk oyunun skorunu ekleyin.</p>}
+      {totalGames === 0 && <p className="empty">{t.scores.empty}</p>}
     </section>
   );
 }
@@ -297,33 +189,31 @@ function AddGameForm({
   onSaved,
 }: {
   board: Scoreboard;
-  mutate: (m: Mutation) => Promise<Scoreboard>;
+  mutate: Mutate;
   onSaved: (after: Scoreboard, gameId: string) => void;
 }) {
-  const defaultPlayers = () => {
+  const { t } = useI18n();
+  const [playing, setPlaying] = useState<Set<string>>(() => {
     const last = board.games.at(-1);
-    return new Set(last ? last.scores.map((s) => s.playerId) : board.players.slice(0, 2).map((p) => p.id));
-  };
-  const [playing, setPlaying] = useState<Set<string>>(defaultPlayers);
+    return new Set(last ? last.scores.map((s) => s.playerId) : board.players.map((p) => p.id));
+  });
   const [gold, setGold] = useState<Record<string, string>>({});
   const [day, setDay] = useState(todayLocal);
   const [cards, setCards] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const entries = board.players
-    .filter((p) => playing.has(p.id))
-    .map((p) => ({ player: p, value: gold[p.id] ?? "" }));
-  const filled = entries.every((e) => /^\d+$/.test(e.value) && Number(e.value) <= MAX_GOLD);
-  const ready = entries.length >= 2 && filled;
+  const entries = board.players.filter((p) => playing.has(p.id)).map((p) => ({ player: p, value: gold[p.id] ?? "" }));
+  const ready = entries.length >= 2 && entries.every((e) => /^\d+$/.test(e.value) && Number(e.value) <= MAX_GOLD);
 
   const preview = (() => {
     if (!ready) return "";
     const ranked = [...entries].sort((a, b) => Number(b.value) - Number(a.value));
     const top = Number(ranked[0].value);
     const tied = ranked.filter((e) => Number(e.value) === top);
-    if (tied.length > 1) return `Berabere: ${tied.map((e) => e.player.name).join(" ve ")}`;
-    return `Kazanan: ${ranked[0].player.name} (+${top - Number(ranked[1].value)} altın)`;
+    if (tied.length > 1) return t.scores.previewTie(tied.map((e) => e.player.name).join(` ${t.and} `));
+    const next = ranked.find((e) => Number(e.value) < top)!;
+    return t.scores.previewWin(ranked[0].player.name, top - Number(next.value));
   })();
 
   const togglePlayer = (id: string) =>
@@ -358,16 +248,16 @@ function AddGameForm({
       setDay(todayLocal());
       onSaved(after, id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kaydedilemedi.");
+      setError(errorText(t, errorCodeOf(err)));
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <section className="panel" aria-labelledby="add-title">
+    <section className="panel area-add" aria-labelledby="add-title">
       <h2 id="add-title" className="panel-title">
-        Oyun ekle
+        {t.scores.addTitle}
       </h2>
       <form onSubmit={onSubmit}>
         <div className="score-inputs">
@@ -378,11 +268,11 @@ function AddGameForm({
                 <label className="score-player">
                   <input type="checkbox" checked={on} onChange={() => togglePlayer(p.id)} />
                   <span className="dot" aria-hidden="true" />
-                  {p.name}
+                  <span className="score-player-name">{p.name}</span>
                 </label>
                 {on && (
                   <label className="gold-input">
-                    <span className="visually-hidden">{p.name} altın</span>
+                    <span className="visually-hidden">{t.scores.goldOf(p.name)}</span>
                     <input
                       type="number"
                       inputMode="numeric"
@@ -392,7 +282,7 @@ function AddGameForm({
                       value={gold[p.id] ?? ""}
                       onChange={(e) => setGold((g) => ({ ...g, [p.id]: e.target.value }))}
                     />
-                    <span aria-hidden="true">altın</span>
+                    <span aria-hidden="true">{t.scores.gold}</span>
                   </label>
                 )}
               </div>
@@ -401,21 +291,15 @@ function AddGameForm({
         </div>
 
         <details className="more-options">
-          <summary>Tarih ve kartlar (isteğe bağlı)</summary>
+          <summary>{t.scores.moreOptions}</summary>
           <label className="date-row">
-            Tarih
+            {t.scores.date}
             <input type="date" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value || todayLocal())} />
           </label>
-          <p className="cards-hint">Bu oyundaki 3 Kingdom Builder kartı (şanslı kart istatistiği için):</p>
+          <p className="cards-hint">{t.scores.cardsHint}</p>
           <div className="card-chips" lang="en">
             {KB_CARD_NAMES.map((c) => (
-              <button
-                key={c}
-                type="button"
-                className="chip"
-                aria-pressed={cards.includes(c)}
-                onClick={() => toggleCard(c)}
-              >
+              <button key={c} type="button" className="chip" aria-pressed={cards.includes(c)} onClick={() => toggleCard(c)}>
                 {c}
               </button>
             ))}
@@ -429,31 +313,83 @@ function AddGameForm({
           </p>
         )}
         <button type="submit" className="send send-wide" disabled={!ready || saving}>
-          {saving ? "Kaydediliyor…" : "Kaydet"}
+          {saving ? t.scores.saving : t.scores.save}
         </button>
       </form>
     </section>
   );
 }
 
+function Stats({ facts, rows }: { facts: Fact[]; rows: Comparison[] }) {
+  const { t } = useI18n();
+  return (
+    <section className="area-stats" aria-labelledby="facts-title">
+      <h2 id="facts-title" className="section-title">
+        {t.scores.statsTitle}
+      </h2>
+      {facts.length > 0 && (
+        <div className="facts">
+          {facts.map((f) => (
+            <article key={f.title} className="fact">
+              <span className="fact-icon" aria-hidden="true">
+                {f.icon}
+              </span>
+              <div>
+                <h3>{f.title}</h3>
+                <p>{f.text}</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+      <h3 className="subsection-title">{t.scores.compareTitle}</h3>
+      <div className="compare">
+        {rows.map((row) => (
+          <article key={row.title} className="compare-row">
+            <h4>
+              <span aria-hidden="true">{row.icon}</span> {row.title}
+            </h4>
+            <div className="compare-cells">
+              {row.cells.map((c) => (
+                <div
+                  key={c.player.id}
+                  className={`compare-cell${c.best ? " is-best" : ""}`}
+                  style={{ "--player": c.player.color } as CSSProperties}
+                >
+                  <span className="compare-name">
+                    <span className="dot" aria-hidden="true" /> {c.player.name}
+                    {c.best && <span className="visually-hidden"> {t.scores.leadingSr}</span>}
+                  </span>
+                  <span className="compare-value">{c.text}</span>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function History({ results, onDelete }: { results: Outcome[]; onDelete: (game: Game) => Promise<void> }) {
+  const { t } = useI18n();
   const [confirming, setConfirming] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
   const newestFirst = [...results].reverse();
   const visible = showAll ? newestFirst : newestFirst.slice(0, 8);
   return (
-    <section aria-labelledby="history-title">
+    <section className="area-history" aria-labelledby="history-title">
       <h2 id="history-title" className="section-title">
-        Geçmiş oyunlar
+        {t.scores.historyTitle}
       </h2>
       <ol className="history">
         {visible.map((r) => (
           <li key={r.game.id} className="history-item">
             <div className="history-head">
-              <span className="history-date">{formatDay(r.game.playedOn)}</span>
+              <span className="history-date">{formatDay(r.game.playedOn, t.locale)}</span>
               {confirming === r.game.id ? (
                 <span className="confirm">
-                  Silinsin mi?
+                  {t.scores.confirmDelete}
                   <button
                     type="button"
                     className="link danger"
@@ -462,15 +398,15 @@ function History({ results, onDelete }: { results: Outcome[]; onDelete: (game: G
                       void onDelete(r.game);
                     }}
                   >
-                    Evet, sil
+                    {t.scores.yesDelete}
                   </button>
                   <button type="button" className="link" onClick={() => setConfirming(null)}>
-                    Vazgeç
+                    {t.scores.cancel}
                   </button>
                 </span>
               ) : (
                 <button type="button" className="link" onClick={() => setConfirming(r.game.id)}>
-                  Sil
+                  {t.scores.delete}
                 </button>
               )}
             </div>
@@ -498,14 +434,15 @@ function History({ results, onDelete }: { results: Outcome[]; onDelete: (game: G
       </ol>
       {newestFirst.length > visible.length && (
         <button type="button" className="pill" onClick={() => setShowAll(true)}>
-          Tümünü göster ({newestFirst.length})
+          {t.scores.showAll(newestFirst.length)}
         </button>
       )}
     </section>
   );
 }
 
-function Players({ board, mutate }: { board: Scoreboard; mutate: (m: Mutation) => Promise<Scoreboard> }) {
+function Players({ board, mutate }: { board: Scoreboard; mutate: Mutate }) {
+  const { t } = useI18n();
   const [editing, setEditing] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [error, setError] = useState("");
@@ -518,14 +455,20 @@ function Players({ board, mutate }: { board: Scoreboard; mutate: (m: Mutation) =
       setEditing(null);
       setName("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Kaydedilemedi.");
+      setError(errorText(t, errorCodeOf(err)));
     }
   };
 
+  const startEditing = (id: string, current: string) => {
+    setEditing(id);
+    setName(current);
+    setError("");
+  };
+
   return (
-    <section aria-labelledby="players-title">
+    <section className="area-players" aria-labelledby="players-title">
       <h2 id="players-title" className="section-title">
-        Oyuncular
+        {t.scores.playersTitle}
       </h2>
       <ul className="players">
         {board.players.map((p) =>
@@ -537,16 +480,8 @@ function Players({ board, mutate }: { board: Scoreboard; mutate: (m: Mutation) =
             <li key={p.id} style={{ "--player": p.color } as CSSProperties}>
               <span className="dot" aria-hidden="true" />
               <span className="player-name">{p.name}</span>
-              <button
-                type="button"
-                className="link"
-                onClick={() => {
-                  setEditing(p.id);
-                  setName(p.name);
-                  setError("");
-                }}
-              >
-                İsmi değiştir
+              <button type="button" className="link" onClick={() => startEditing(p.id, p.name)}>
+                {t.scores.rename}
               </button>
             </li>
           ),
@@ -563,16 +498,8 @@ function Players({ board, mutate }: { board: Scoreboard; mutate: (m: Mutation) =
         </p>
       )}
       {editing === null && board.players.length < MAX_PLAYERS && (
-        <button
-          type="button"
-          className="pill"
-          onClick={() => {
-            setEditing("new");
-            setName("");
-            setError("");
-          }}
-        >
-          + Oyuncu ekle
+        <button type="button" className="pill" onClick={() => startEditing("new", "")}>
+          {t.scores.addPlayer}
         </button>
       )}
     </section>
@@ -590,17 +517,25 @@ function PlayerNameForm({
   onSubmit: (e: FormEvent) => void;
   onCancel: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <form className="name-form" onSubmit={onSubmit}>
       <label className="visually-hidden" htmlFor="player-name">
-        Oyuncu adı
+        {t.scores.playerName}
       </label>
-      <input id="player-name" autoFocus maxLength={24} value={value} onChange={(e) => onChange(e.target.value)} />
+      <input
+        id="player-name"
+        autoFocus
+        maxLength={24}
+        autoCapitalize="words"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
       <button type="submit" className="pill" disabled={!value.trim()}>
-        Kaydet
+        {t.scores.save}
       </button>
       <button type="button" className="link" onClick={onCancel}>
-        Vazgeç
+        {t.scores.cancel}
       </button>
     </form>
   );

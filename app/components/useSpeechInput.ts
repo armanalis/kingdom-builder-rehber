@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import type { ErrorCode, Lang } from "@/lib/i18n";
 
 // Minimal Web Speech API typings (not part of TypeScript's DOM lib).
 type RecognitionResultList = ArrayLike<{ isFinal: boolean } & ArrayLike<{ transcript: string }>>;
@@ -38,7 +39,7 @@ function canRecord() {
   return typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
 }
 
-export function useSpeechInput(onText: (text: string) => void, onError: (message: string) => void) {
+export function useSpeechInput(lang: Lang, onText: (text: string) => void, onError: (code: ErrorCode) => void) {
   const [status, setStatus] = useState<SpeechStatus>("idle");
   const [interim, setInterim] = useState("");
   const supported = useSyncExternalStore(
@@ -52,16 +53,18 @@ export function useSpeechInput(onText: (text: string) => void, onError: (message
   // Keep the latest callbacks without re-creating start().
   const onTextRef = useRef(onText);
   const onErrorRef = useRef(onError);
+  const langRef = useRef(lang);
   useEffect(() => {
     onTextRef.current = onText;
     onErrorRef.current = onError;
+    langRef.current = lang;
   });
 
   useEffect(() => () => stopRef.current?.(), []);
 
   const startRecorder = useCallback(async () => {
     if (!canRecord()) {
-      onErrorRef.current("Bu tarayıcı sesli girişi desteklemiyor. Lütfen sorunuzu yazın.");
+      onErrorRef.current("unsupported");
       return;
     }
     let stream: MediaStream;
@@ -70,7 +73,7 @@ export function useSpeechInput(onText: (text: string) => void, onError: (message
         audio: { echoCancellation: true, noiseSuppression: true },
       });
     } catch {
-      onErrorRef.current("Mikrofon izni gerekli. Tarayıcı ayarlarından mikrofona izin verin.");
+      onErrorRef.current("mic_permission");
       return;
     }
 
@@ -124,19 +127,20 @@ export function useSpeechInput(onText: (text: string) => void, onError: (message
       const audio = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
       if (!heardSpeech || audio.size < 2000) {
         setStatus("idle");
-        onErrorRef.current("Ses duyulamadı. Mikrofona dokunup tekrar konuşun.");
+        onErrorRef.current("no_speech");
         return;
       }
       setStatus("transcribing");
       try {
         const form = new FormData();
-        form.append("audio", audio, audio.type.includes("mp4") ? "soru.m4a" : "soru.webm");
+        form.append("audio", audio, audio.type.includes("mp4") ? "question.m4a" : "question.webm");
+        form.append("lang", langRef.current);
         const res = await fetch("/api/transcribe", { method: "POST", body: form });
-        const data = (await res.json()) as { text?: string; error?: string };
-        if (!res.ok || !data.text) throw new Error(data.error ?? "Ses anlaşılamadı. Tekrar deneyin.");
-        onTextRef.current(data.text);
-      } catch (e) {
-        onErrorRef.current(e instanceof Error ? e.message : "Ses anlaşılamadı. Tekrar deneyin.");
+        const data = (await res.json().catch(() => ({}))) as { text?: string; error?: ErrorCode };
+        if (res.ok && data.text) onTextRef.current(data.text);
+        else onErrorRef.current(data.error ?? "transcribe_failed");
+      } catch {
+        onErrorRef.current("transcribe_failed");
       } finally {
         setStatus("idle");
       }
@@ -150,7 +154,7 @@ export function useSpeechInput(onText: (text: string) => void, onError: (message
   const startBrowserRecognition = useCallback(
     (Ctor: RecognitionCtor) => {
       const rec = new Ctor();
-      rec.lang = "tr-TR";
+      rec.lang = langRef.current === "tr" ? "tr-TR" : "en-US";
       rec.interimResults = true;
       rec.continuous = false;
       rec.maxAlternatives = 1;
@@ -175,11 +179,11 @@ export function useSpeechInput(onText: (text: string) => void, onError: (message
           useServerRef.current = true;
           void startRecorder();
         } else if (errorCode === "not-allowed") {
-          onErrorRef.current("Mikrofon izni gerekli. Tarayıcı ayarlarından mikrofona izin verin.");
+          onErrorRef.current("mic_permission");
         } else if (transcript) {
           onTextRef.current(transcript);
         } else if (errorCode !== "aborted") {
-          onErrorRef.current("Ses duyulamadı. Mikrofona dokunup tekrar konuşun.");
+          onErrorRef.current("no_speech");
         }
       };
 

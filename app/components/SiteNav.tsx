@@ -2,21 +2,25 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
-const LINKS = [
-  { href: "/", label: "Kural Hakemi" },
-  { href: "/skor", label: "Skor Tablosu" },
-];
+import { LanguageSwitch, useI18n } from "./i18n";
 
 export function SiteNav() {
   const pathname = usePathname();
+  const { t } = useI18n();
+  const links = [
+    { href: "/", label: t.nav.rules },
+    { href: "/skor", label: t.nav.scores },
+  ];
   return (
-    <nav className="site-nav" aria-label="Bölümler">
-      {LINKS.map((l) => (
-        <Link key={l.href} href={l.href} aria-current={pathname === l.href ? "page" : undefined}>
-          {l.label}
-        </Link>
-      ))}
-    </nav>
+    <div className="topbar">
+      <nav className="site-nav" aria-label="Kingdom Builder">
+        {links.map((l) => (
+          <Link key={l.href} href={l.href} aria-current={pathname === l.href ? "page" : undefined}>
+            {l.label}
+          </Link>
+        ))}
+      </nav>
+      <LanguageSwitch />
+    </div>
   );
 }
