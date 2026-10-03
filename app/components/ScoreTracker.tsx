@@ -18,6 +18,7 @@ import {
   type PlayerStats,
 } from "@/lib/stats";
 import { useI18n } from "./i18n";
+import { PlayerPicker } from "./Onboarding";
 import { leaveGroup, selectGroup, useGroupId } from "./session";
 import { SiteNav } from "./SiteNav";
 
@@ -99,6 +100,8 @@ export function ScoreTracker() {
         <p className="lede">{t.scores.lede}</p>
       </header>
 
+      {groupId === null && <PlayerPicker />}
+
       {loadError && (
         <div className="notice" role="alert">
           {errorText(t, loadError)}{" "}
@@ -115,9 +118,9 @@ export function ScoreTracker() {
         </div>
       )}
 
-      {!board && !loadError && <p className="loading">{t.scores.loading}</p>}
+      {groupId && !board && !loadError && <p className="loading">{t.scores.loading}</p>}
 
-      {board && (
+      {groupId && board && (
         <main className="score-main">
           <Leaderboard stats={stats} totalGames={results.length} />
           <AddGameForm board={board} mutate={mutate} onSaved={(after, id) => onSaved(results, after, id)} />

@@ -1,20 +1,15 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
 import { errorText } from "@/lib/i18n";
 import { MAX_PLAYERS, MIN_PLAYERS, PLAYER_COLORS, type GroupSummary, type Scoreboard } from "@/lib/scoreboard";
 import { deleteGroup, errorCodeOf, fetchGroups, sendMutation } from "@/lib/scoresClient";
 import { formatDay } from "@/lib/stats";
-import { LanguageSwitch, useI18n } from "./i18n";
-import { chooseGroup, useGroupId } from "./session";
+import { useI18n } from "./i18n";
+import { chooseGroup } from "./session";
 
-/** Shows the player picker until this device has chosen a player group. */
-export function OnboardingGate({ children }: { children: ReactNode }) {
-  const groupId = useGroupId();
-  return groupId === null ? <PlayerPicker /> : children;
-}
-
-function PlayerPicker() {
+/** "Who's playing?": pick saved players or enter new ones. Shown on the scoreboard until this device picks. */
+export function PlayerPicker() {
   const { t } = useI18n();
   const [groups, setGroups] = useState<GroupSummary[] | null>(null);
   const [error, setError] = useState("");
@@ -26,67 +21,44 @@ function PlayerPicker() {
 
   const o = t.onboarding;
   return (
-    <div className="page onboarding">
-      <div className="topbar">
-        <LanguageSwitch />
-      </div>
-      <header className="hero">
-        <div className="terrain-strip" aria-hidden="true">
-          {["grass", "canyon", "desert", "flower", "forest"].map((x) => (
-            <span key={x} className={`hex hex-${x}`} />
-          ))}
+    <main className="picker">
+      {!groups && !error && <p className="loading">{t.scores.loading}</p>}
+      {error && (
+        <div className="notice" role="alert">
+          {errorText(t, error)}{" "}
+          <button
+            type="button"
+            className="pill"
+            onClick={() => {
+              setError("");
+              load();
+            }}
+          >
+            {t.scores.retry}
+          </button>
         </div>
-        <p className="eyebrow" lang="en">
-          Kingdom Builder
-        </p>
-        <h1>{o.title}</h1>
-        <p className="lede">{o.intro}</p>
-        <ul className="features">
-          {o.features.map((f) => (
-            <li key={f}>{f}</li>
-          ))}
-        </ul>
-      </header>
+      )}
 
-      <main className="picker">
-        {!groups && !error && <p className="loading">{t.scores.loading}</p>}
-        {error && (
-          <div className="notice" role="alert">
-            {errorText(t, error)}{" "}
-            <button
-              type="button"
-              className="pill"
-              onClick={() => {
-                setError("");
-                load();
-              }}
-            >
-              {t.scores.retry}
-            </button>
-          </div>
-        )}
+      {groups && groups.length > 0 && (
+        <section className="panel" aria-labelledby="pick-title">
+          <h2 id="pick-title" className="panel-title">
+            {o.pickTitle}
+          </h2>
+          <p className="setup-lede">{o.pickLede}</p>
+          <ul className="group-list">
+            {groups.map((g) => (
+              <GroupRow key={g.id} group={g} onDeleted={setGroups} />
+            ))}
+          </ul>
+        </section>
+      )}
 
-        {groups && groups.length > 0 && (
-          <section className="panel" aria-labelledby="pick-title">
-            <h2 id="pick-title" className="panel-title">
-              {o.pickTitle}
-            </h2>
-            <p className="setup-lede">{o.pickLede}</p>
-            <ul className="group-list">
-              {groups.map((g) => (
-                <GroupRow key={g.id} group={g} onDeleted={setGroups} />
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {groups && (
-          <section className="panel" aria-labelledby="setup-title">
-            <PlayerSetupForm onDone={chooseGroup} />
-          </section>
-        )}
-      </main>
-    </div>
+      {groups && (
+        <section className="panel" aria-labelledby="setup-title">
+          <PlayerSetupForm onDone={chooseGroup} />
+        </section>
+      )}
+    </main>
   );
 }
 

@@ -2,7 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Nunito } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "./components/i18n";
-import { OnboardingGate } from "./components/Onboarding";
 
 const display = Fraunces({
   variable: "--font-display",
@@ -31,7 +30,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="tr" className={`${display.variable} ${body.variable}`}>
       <body>
         <LanguageProvider>
-          <OnboardingGate>{children}</OnboardingGate>
+          {children}
         </LanguageProvider>
       </body>
     </html>

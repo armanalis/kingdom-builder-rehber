@@ -134,9 +134,6 @@ const tr = {
     saving: "Kaydediliyor…",
   },
   onboarding: {
-    title: "Hoş geldiniz!",
-    intro: "Kingdom Builder için kural hakemi ve skor tablosu.",
-    features: ["🎙️ Kuralı sesli sorun, anında net cevap alın", "🏆 Her oyunun skorunu kaydedin, rekorları görün"],
     pickTitle: "Kimler oynuyor?",
     pickLede: "Kayıtlı oyunculardan birini seçin ya da aşağıya yeni oyuncular yazın.",
     groupMeta: (games: number, last: string) => `${games} oyun · son: ${last}`,
@@ -314,9 +311,6 @@ const en: Messages = {
     saving: "Saving…",
   },
   onboarding: {
-    title: "Welcome!",
-    intro: "A rules referee and scoreboard for Kingdom Builder.",
-    features: ["🎙️ Ask a rule out loud, get a clear answer", "🏆 Log every game and see the records"],
     pickTitle: "Who's playing?",
     pickLede: "Pick saved players, or enter new players below.",
     groupMeta: (games: number, last: string) => `${games} ${games === 1 ? "game" : "games"} · last: ${last}`,
