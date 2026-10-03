@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore, type CSSProperties, type FormEvent, type KeyboardEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent, type KeyboardEvent } from "react";
 import { ALL_COMPONENTS } from "@/lib/cards";
 import { errorText } from "@/lib/i18n";
 import { KB_CARD_NAMES, MAX_GOLD, type GroupMutation, type Player, type Scoreboard } from "@/lib/scoreboard";
@@ -9,6 +9,7 @@ import { fieldId, playerTotal, ruleGold, rulesFor, type Counts, type ScoreRule }
 import { todayLocal } from "@/lib/stats";
 import { ComponentImage } from "./CardGuide";
 import { useI18n } from "./i18n";
+import { playerStyle } from "./players";
 
 type Change = GroupMutation extends infer M ? (M extends GroupMutation ? Omit<M, "groupId"> : never) : never;
 type Mode = "calc" | "total";
@@ -63,7 +64,9 @@ export function AddGameForm({
     const raw = gold[p.id] ?? "";
     return { player: p, gold: /^\d+$/.test(raw) && Number(raw) <= MAX_GOLD ? Number(raw) : null };
   });
-  const ready = players.length >= 2 && totals.every((x) => x.gold !== null);
+  // An all-zero calculator (nothing typed yet) is not a finished game.
+  const ready =
+    players.length >= 2 && totals.every((x) => x.gold !== null) && (mode === "total" || totals.some((x) => x.gold! > 0));
 
   const preview = (() => {
     if (!ready) return "";
@@ -143,7 +146,7 @@ export function AddGameForm({
                   type="button"
                   className="chip"
                   aria-pressed={playing.has(p.id)}
-                  style={{ "--player": p.color } as CSSProperties}
+                  style={playerStyle(p.color)}
                   onClick={() => togglePlayer(p.id)}
                 >
                   <span className="dot" aria-hidden="true" /> {p.name}
@@ -174,7 +177,7 @@ export function AddGameForm({
             {board.players.map((p) => {
               const on = playing.has(p.id);
               return (
-                <div key={p.id} className={`score-row${on ? "" : " is-off"}`} style={{ "--player": p.color } as CSSProperties}>
+                <div key={p.id} className={`score-row${on ? "" : " is-off"}`} style={playerStyle(p.color)}>
                   <label className="score-player">
                     <input type="checkbox" checked={on} onChange={() => togglePlayer(p.id)} />
                     <span className="dot" aria-hidden="true" />
@@ -263,7 +266,7 @@ function PlayerCalc({
 }) {
   const { lang, t } = useI18n();
   return (
-    <fieldset className="calc-player" style={{ "--player": player.color } as CSSProperties}>
+    <fieldset className="calc-player" style={playerStyle(player.color)}>
       <legend>
         <span className="dot" aria-hidden="true" /> {player.name}
         <span className="calc-total">

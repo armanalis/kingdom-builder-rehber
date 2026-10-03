@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { errorText } from "@/lib/i18n";
 import { MAX_PLAYERS, MIN_PLAYERS, PLAYER_COLORS, type GroupSummary, type Scoreboard } from "@/lib/scoreboard";
 import { deleteGroup, errorCodeOf, fetchGroups, sendMutation } from "@/lib/scoresClient";
 import { formatDay } from "@/lib/stats";
 import { useI18n } from "./i18n";
+import { ColorPicker, playerStyle } from "./players";
 import { chooseGroup } from "./session";
 
 /** "Who's playing?": pick saved players or enter new ones. Shown on the scoreboard until this device picks. */
@@ -77,7 +78,7 @@ function GroupRow({ group, onDeleted }: { group: GroupSummary; onDeleted: (group
       <button type="button" className="group-pick" onClick={() => chooseGroup(group)}>
         <span className="group-players">
           {group.players.map((p) => (
-            <span key={p.id} style={{ "--player": p.color } as CSSProperties}>
+            <span key={p.id} style={playerStyle(p.color)}>
               <span className="dot" aria-hidden="true" /> {p.name}
             </span>
           ))}
@@ -115,10 +116,25 @@ function GroupRow({ group, onDeleted }: { group: GroupSummary; onDeleted: (group
 /** Enter 2–5 player names to start a new player group. */
 export function PlayerSetupForm({ onDone }: { onDone: (board: Scoreboard) => void }) {
   const { t } = useI18n();
-  const [names, setNames] = useState(["", ""]);
+  const [rows, setRows] = useState([
+    { name: "", color: PLAYER_COLORS[0] as string },
+    { name: "", color: PLAYER_COLORS[1] as string },
+  ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const ready = names.every((n) => n.trim());
+  const ready = rows.every((r) => r.name.trim());
+
+  const setName = (i: number, name: string) => setRows((prev) => prev.map((r, j) => (j === i ? { ...r, name } : r)));
+  // Picking a color another row has swaps the two, like on the scoreboard.
+  const setColor = (i: number, color: string) =>
+    setRows((prev) =>
+      prev.map((r, j) => (j === i ? { ...r, color } : r.color === color ? { ...r, color: prev[i].color } : r)),
+    );
+  const addRow = () =>
+    setRows((prev) => [
+      ...prev,
+      { name: "", color: PLAYER_COLORS.find((c) => !prev.some((r) => r.color === c)) ?? PLAYER_COLORS[0] },
+    ]);
 
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -126,7 +142,14 @@ export function PlayerSetupForm({ onDone }: { onDone: (board: Scoreboard) => voi
     setSaving(true);
     setError("");
     try {
-      onDone(await sendMutation({ type: "createGroup", id: crypto.randomUUID(), names }));
+      onDone(
+        await sendMutation({
+          type: "createGroup",
+          id: crypto.randomUUID(),
+          names: rows.map((r) => r.name),
+          colors: rows.map((r) => r.color),
+        }),
+      );
     } catch (err) {
       setError(errorText(t, errorCodeOf(err)));
       setSaving(false);
@@ -140,28 +163,35 @@ export function PlayerSetupForm({ onDone }: { onDone: (board: Scoreboard) => voi
       </h2>
       <p className="setup-lede">{t.setup.lede}</p>
       <form onSubmit={onSubmit}>
-        {names.map((value, i) => (
-          <div key={i} className="setup-field" style={{ "--player": PLAYER_COLORS[i] } as CSSProperties}>
-            <label htmlFor={`setup-name-${i}`}>
-              <span className="dot" aria-hidden="true" /> {t.setup.player(i + 1)}
-            </label>
+        {rows.map((row, i) => (
+          <div key={i} className="setup-field" style={playerStyle(row.color)}>
+            <div className="setup-label-row">
+              <label htmlFor={`setup-name-${i}`}>
+                <span className="dot" aria-hidden="true" /> {t.setup.player(i + 1)}
+              </label>
+              <ColorPicker
+                value={row.color}
+                onChange={(color) => setColor(i, color)}
+                label={t.scores.colorOf(row.name.trim() || t.setup.player(i + 1))}
+              />
+            </div>
             <div className="setup-input-row">
               <input
                 id={`setup-name-${i}`}
-                value={value}
+                value={row.name}
                 maxLength={24}
                 autoComplete="off"
                 autoCapitalize="words"
-                enterKeyHint={i === names.length - 1 ? "done" : "next"}
+                enterKeyHint={i === rows.length - 1 ? "done" : "next"}
                 placeholder={t.setup.placeholders[i]}
-                onChange={(e) => setNames((prev) => prev.map((n, j) => (j === i ? e.target.value : n)))}
+                onChange={(e) => setName(i, e.target.value)}
               />
-              {names.length > MIN_PLAYERS && (
+              {rows.length > MIN_PLAYERS && (
                 <button
                   type="button"
                   className="remove-row"
                   aria-label={t.setup.removeRow(i + 1)}
-                  onClick={() => setNames((prev) => prev.filter((_, j) => j !== i))}
+                  onClick={() => setRows((prev) => prev.filter((_, j) => j !== i))}
                 >
                   ×
                 </button>
@@ -169,8 +199,8 @@ export function PlayerSetupForm({ onDone }: { onDone: (board: Scoreboard) => voi
             </div>
           </div>
         ))}
-        {names.length < MAX_PLAYERS && (
-          <button type="button" className="pill" onClick={() => setNames((prev) => [...prev, ""])}>
+        {rows.length < MAX_PLAYERS && (
+          <button type="button" className="pill" onClick={addRow}>
             {t.setup.addRow}
           </button>
         )}

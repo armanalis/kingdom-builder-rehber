@@ -35,15 +35,25 @@ export type GroupMutation =
   | { type: "addGame"; groupId: string; game: Partial<Game> }
   | { type: "deleteGame"; groupId: string; id: string }
   | { type: "addPlayer"; groupId: string; name: string }
-  | { type: "renamePlayer"; groupId: string; id: string; name: string };
+  | { type: "renamePlayer"; groupId: string; id: string; name: string }
+  | { type: "recolorPlayer"; groupId: string; id: string; color: string };
 
 export type Mutation =
   | GroupMutation
-  | { type: "createGroup"; id?: string; names: string[] }
+  | { type: "createGroup"; id?: string; names: string[]; colors?: string[] }
   | { type: "deleteGroup"; groupId: string };
 
-// Settlement colors: orange, blue, black, white (shown grey), purple.
-export const PLAYER_COLORS = ["#d9822b", "#3a6fb0", "#2b2118", "#8b9097", "#9b4f96"];
+// The four settlement colors in the box: orange, blue, black, white.
+export const PLAYER_COLORS = ["#d9822b", "#3a6fb0", "#2b2118", "#f7f3ea"] as const;
+export const COLOR_IDS = ["orange", "blue", "black", "white"] as const;
+const LEGACY_WHITE = "#8b9097"; // white used to be drawn grey
+
+const isPaletteColor = (c: unknown): c is string => PLAYER_COLORS.includes(c as (typeof PLAYER_COLORS)[number]);
+
+/** First color nobody in the group has yet (colors repeat only with a 5th player). */
+function freeColor(players: Player[]): string {
+  return PLAYER_COLORS.find((c) => !players.some((p) => p.color === c)) ?? PLAYER_COLORS[players.length % PLAYER_COLORS.length];
+}
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 5;
 export const MAX_GOLD = 400;
@@ -76,13 +86,18 @@ export function emptyStore(): Store {
 type LegacyBoard = { version: 1; players: Player[]; games: Game[]; setupDone?: boolean };
 
 /** Reads any stored version; the single-board v1 document becomes the first group. */
+const fixColors = (players: Player[]) =>
+  players.map((p) => (p.color === LEGACY_WHITE ? { ...p, color: PLAYER_COLORS[3] } : p));
+
 export function migrate(data: unknown): Store {
   const doc = data as Partial<Store> & Partial<LegacyBoard>;
-  if (doc?.version === 2 && Array.isArray(doc.groups)) return doc as Store;
+  if (doc?.version === 2 && Array.isArray(doc.groups)) {
+    return { version: 2, groups: doc.groups.map((g) => ({ ...g, players: fixColors(g.players) })) };
+  }
   if (doc?.version === 1 && Array.isArray(doc.players) && Array.isArray(doc.games)) {
     if (!doc.setupDone && doc.games.length === 0) return emptyStore();
     const createdAt = doc.games[0]?.createdAt ?? new Date().toISOString();
-    return { version: 2, groups: [{ id: "legacy", createdAt, players: doc.players, games: doc.games }] };
+    return { version: 2, groups: [{ id: "legacy", createdAt, players: fixColors(doc.players), games: doc.games }] };
   }
   return emptyStore();
 }
@@ -155,8 +170,7 @@ function applyToGroup(board: Scoreboard, m: GroupMutation): Scoreboard {
       if (board.players.length >= MAX_PLAYERS) throw new ScoreboardError("max_players");
       const name = cleanName(m.name);
       if (board.players.some((p) => sameName(p.name, name))) throw new ScoreboardError("names_distinct");
-      const color = PLAYER_COLORS.find((c) => !board.players.some((p) => p.color === c)) ?? PLAYER_COLORS[0];
-      return { ...board, players: [...board.players, { id: newId(), name, color }] };
+      return { ...board, players: [...board.players, { id: newId(), name, color: freeColor(board.players) }] };
     }
     case "renamePlayer": {
       const name = cleanName(m.name);
@@ -165,6 +179,18 @@ function applyToGroup(board: Scoreboard, m: GroupMutation): Scoreboard {
         throw new ScoreboardError("names_distinct");
       }
       return { ...board, players: board.players.map((p) => (p.id === m.id ? { ...p, name } : p)) };
+    }
+    case "recolorPlayer": {
+      const player = board.players.find((p) => p.id === m.id);
+      if (!player) throw new ScoreboardError("player_not_found");
+      if (!isPaletteColor(m.color)) throw new ScoreboardError("generic");
+      // Taking a color someone already has swaps the two colors.
+      return {
+        ...board,
+        players: board.players.map((p) =>
+          p.id === player.id ? { ...p, color: m.color } : p.color === m.color ? { ...p, color: player.color } : p,
+        ),
+      };
     }
     default:
       throw new ScoreboardError("generic");
@@ -185,7 +211,11 @@ export function applyMutation(store: Store, m: Mutation): { store: Store; groupI
     const group: Scoreboard = {
       id,
       createdAt: new Date().toISOString(),
-      players: names.map((name, i) => ({ id: newId(), name, color: PLAYER_COLORS[i] })),
+      players: names.reduce<Player[]>((players, name, i) => {
+        const wanted = m.colors?.[i];
+        const color = isPaletteColor(wanted) ? wanted : freeColor(players);
+        return [...players, { id: newId(), name, color }];
+      }, []),
       games: [],
     };
     return { store: { ...store, groups: [...store.groups, group] }, groupId: id };

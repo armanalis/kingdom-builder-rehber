@@ -137,6 +137,7 @@ const tr = {
     rename: "İsmi değiştir",
     addPlayer: "+ Oyuncu ekle",
     playerName: "Oyuncu adı",
+    colorOf: (name: string) => `${name} için renk`,
     otherPlayers: "Başka oyuncularla oyna",
   },
   install: {
@@ -145,6 +146,7 @@ const tr = {
     android: "Chrome'da sağ üstteki ⋮ menüsüne, sonra \"Ana ekrana ekle\"ye dokunun. Kart rehberi internetsiz de açılır.",
     dismiss: "Kapat",
   },
+  colors: { orange: "Turuncu", blue: "Mavi", black: "Siyah", white: "Beyaz" },
   share: {
     button: "WhatsApp'ta paylaş",
     title: "Kingdom Builder skorları",
@@ -344,6 +346,7 @@ const en: Messages = {
     rename: "Rename",
     addPlayer: "+ Add player",
     playerName: "Player name",
+    colorOf: (name: string) => `Color for ${name}`,
     otherPlayers: "Play with other players",
   },
   install: {
@@ -352,6 +355,7 @@ const en: Messages = {
     android: "In Chrome, tap the ⋮ menu at the top right, then \"Add to Home screen\". The card guide then opens without internet too.",
     dismiss: "Close",
   },
+  colors: { orange: "Orange", blue: "Blue", black: "Black", white: "White" },
   share: {
     button: "Share on WhatsApp",
     title: "Kingdom Builder scores",

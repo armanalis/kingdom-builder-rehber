@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { errorText } from "@/lib/i18n";
 import { MAX_PLAYERS, type Game, type GroupMutation, type Scoreboard } from "@/lib/scoreboard";
 import { errorCodeOf, fetchScoreboard, sendMutation } from "@/lib/scoresClient";
@@ -19,6 +19,7 @@ import {
 } from "@/lib/stats";
 import { AddGameForm } from "./AddGame";
 import { useI18n } from "./i18n";
+import { ColorPicker, playerStyle } from "./players";
 import { PlayerPicker } from "./Onboarding";
 import { leaveGroup, selectGroup, useGroupId } from "./session";
 import { SiteNav } from "./SiteNav";
@@ -204,7 +205,7 @@ function Leaderboard({ stats, totalGames }: { stats: PlayerStats[]; totalGames: 
           <div
             key={s.player.id}
             className={`leader-card${leading ? " is-leading" : ""}`}
-            style={{ "--player": s.player.color } as CSSProperties}
+            style={playerStyle(s.player.color)}
           >
             {leading && (
               <span className="crown" role="img" aria-label={t.scores.leading}>
@@ -261,7 +262,7 @@ function Stats({ facts, rows }: { facts: Fact[]; rows: Comparison[] }) {
                 <div
                   key={c.player.id}
                   className={`compare-cell${c.best ? " is-best" : ""}`}
-                  style={{ "--player": c.player.color } as CSSProperties}
+                  style={playerStyle(c.player.color)}
                 >
                   <span className="compare-name">
                     <span className="dot" aria-hidden="true" /> {c.player.name}
@@ -322,7 +323,7 @@ function History({ results, onDelete }: { results: Outcome[]; onDelete: (game: G
                 <span
                   key={x.player.id}
                   className={r.winners.some((w) => w.id === x.player.id) ? "is-winner" : ""}
-                  style={{ "--player": x.player.color } as CSSProperties}
+                  style={playerStyle(x.player.color)}
                 >
                   {i > 0 && <span className="sep"> – </span>}
                   <span className="dot" aria-hidden="true" />
@@ -384,12 +385,21 @@ function Players({ board, mutate }: { board: Scoreboard; mutate: Mutate }) {
               <PlayerNameForm value={name} onChange={setName} onSubmit={save} onCancel={() => setEditing(null)} />
             </li>
           ) : (
-            <li key={p.id} style={{ "--player": p.color } as CSSProperties}>
+            <li key={p.id} className="player-row" style={playerStyle(p.color)}>
               <span className="dot" aria-hidden="true" />
               <span className="player-name">{p.name}</span>
               <button type="button" className="link" onClick={() => startEditing(p.id, p.name)}>
                 {t.scores.rename}
               </button>
+              <ColorPicker
+                value={p.color}
+                label={t.scores.colorOf(p.name)}
+                onChange={(color) =>
+                  void mutate({ type: "recolorPlayer", id: p.id, color }).catch((err) =>
+                    setError(errorText(t, errorCodeOf(err))),
+                  )
+                }
+              />
             </li>
           ),
         )}
