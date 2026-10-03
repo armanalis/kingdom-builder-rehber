@@ -1511,3 +1511,70 @@ h1 {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* ---------- photo questions ---------- */
+
+.photo-btn {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  border-radius: 14px;
+  border: 1.5px solid var(--line);
+  background: var(--parchment);
+  color: var(--forest-deep);
+}
+
+.photo-btn:hover {
+  border-color: var(--gold);
+}
+
+.photo-preview {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 8px;
+  border-radius: 14px;
+  background: var(--parchment);
+  border: 1px solid var(--line);
+}
+
+.photo-preview img {
+  flex: none;
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+
+.photo-preview p {
+  flex: 1;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--forest-deep);
+}
+
+.photo-remove {
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  background: var(--paper);
+  color: var(--ink-soft);
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.answer-photo {
+  display: block;
+  max-width: min(100%, 260px);
+  max-height: 220px;
+  margin: 0 0 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  object-fit: contain;
+  background: var(--parchment);
+}

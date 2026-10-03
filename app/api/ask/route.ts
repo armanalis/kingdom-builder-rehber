@@ -9,6 +9,18 @@ export const maxDuration = 60;
 const MAX_TURNS = 8;
 const MAX_QUESTION_CHARS = 800;
 const MAX_TURN_CHARS = 2500;
+const PHOTO_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const MAX_PHOTO_BASE64 = 4_000_000; // ~3 MB; the browser shrinks photos far below this
+
+type Photo = { data: string; mediaType: string };
+
+function parsePhoto(input: unknown): Photo | null | undefined {
+  if (input === undefined || input === null) return undefined;
+  const { data, mediaType } = input as { data?: unknown; mediaType?: unknown };
+  if (typeof data !== "string" || typeof mediaType !== "string") return null;
+  if (!PHOTO_TYPES.has(mediaType) || data.length > MAX_PHOTO_BASE64) return null;
+  return { data, mediaType };
+}
 
 function parseMessages(input: unknown): ModelMessage[] | null {
   if (!Array.isArray(input) || input.length === 0) return null;
@@ -29,15 +41,27 @@ function parseMessages(input: unknown): ModelMessage[] | null {
 }
 
 export async function POST(req: Request) {
-  let body: { messages?: unknown; lang?: unknown };
+  let body: { messages?: unknown; lang?: unknown; photo?: unknown };
   try {
     body = await req.json();
   } catch {
     return Response.json({ error: "bad_request" }, { status: 400 });
   }
   const messages = parseMessages(body?.messages);
-  if (!messages) {
-    return Response.json({ error: "bad_request" }, { status: 400 });
+  const photo = parsePhoto(body?.photo);
+  if (!messages || photo === null) {
+    return Response.json({ error: photo === null ? "photo_failed" : "bad_request" }, { status: 400 });
+  }
+  // The photo belongs to the newest question.
+  if (photo) {
+    const last = messages.length - 1;
+    messages[last] = {
+      role: "user",
+      content: [
+        { type: "text", text: messages[last].content as string },
+        { type: "file", mediaType: photo.mediaType, data: photo.data },
+      ],
+    };
   }
   const instructions = buildSystemPrompt(isLang(body.lang) ? body.lang : "tr");
   const models = answerModels();

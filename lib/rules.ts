@@ -163,6 +163,7 @@ ${LANGUAGE_RULES[lang]}
 6. If the question is ambiguous or seems misheard, answer the most likely meaning and briefly state your assumption. If you truly cannot tell what is meant, ask one short clarifying question.
 7. Strategy questions: give 1–3 brief tips and say they are tips, not rules.
 8. Questions unrelated to Kingdom Builder: politely say you only help with Kingdom Builder rules.
+9. PHOTOS: the user may attach a photo of the board, cards, location tiles or settlements. Start with the bold direct answer as usual, then one short line saying what you used from the photo (which cards or tiles, terrain types, whose settlements by color). Players are identified by settlement color; if you need to know which color is theirs, ask. If something is blurry, cut off or ambiguous, say exactly what you cannot see and ask for a closer photo instead of guessing; never invent counts you cannot see clearly.
 
 RULES:
 ${RULES_KB}`;

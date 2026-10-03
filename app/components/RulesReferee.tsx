@@ -11,17 +11,20 @@ import {
 } from "react";
 import Markdown from "react-markdown";
 import { ERROR_MARKER } from "@/lib/errors";
-import { errorText, type ErrorCode, type Lang } from "@/lib/i18n";
+import { errorText, MESSAGES, type ErrorCode, type Lang } from "@/lib/i18n";
 import { mentionedComponents } from "@/lib/cards";
 import { CardGuide, ComponentImage } from "./CardGuide";
 import { useI18n } from "./i18n";
 import { SiteNav } from "./SiteNav";
+import { preparePhoto, type Photo } from "./photo";
 import { canSpeak, speak, stopSpeaking, unlockSpeech } from "./speak";
 import { useSpeechInput } from "./useSpeechInput";
 
 type Entry = {
   id: string;
   question: string;
+  /** Photo sent with the question (small data URL), shown above the answer. */
+  photoUrl?: string;
   answer: string;
   lang: Lang;
   state: "streaming" | "done" | "error";
@@ -55,6 +58,9 @@ export function RulesReferee() {
   const autoRead = useSyncExternalStore(subscribeAutoRead, getAutoRead, () => true);
   const ttsAvailable = useSyncExternalStore(subscribeNever, canSpeak, () => false);
   const [speakingId, setSpeakingId] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<Photo | null>(null);
+  const photoRef = useRef<Photo | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const entriesRef = useRef(entries);
   const abortRef = useRef<AbortController | null>(null);
   const answersRef = useRef<HTMLElement>(null);
@@ -62,6 +68,20 @@ export function RulesReferee() {
   useEffect(() => {
     entriesRef.current = entries;
   }, [entries]);
+
+  useEffect(() => {
+    photoRef.current = photo;
+  }, [photo]);
+
+  const onPhotoPicked = async (file: File | undefined) => {
+    if (!file) return;
+    setNotice(null);
+    try {
+      setPhoto(await preparePhoto(file));
+    } catch {
+      setNotice("photo_failed");
+    }
+  };
 
   const update = (id: string, patch: Partial<Entry>) =>
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
@@ -73,8 +93,11 @@ export function RulesReferee() {
 
   const ask = useCallback(
     async (raw: string, viaVoice = false) => {
-      const question = raw.trim();
+      const attached = photoRef.current;
+      const question = raw.trim() || (attached ? MESSAGES[lang].rules.photoQuestion : "");
       if (!question) return;
+      setPhoto(null);
+      photoRef.current = null;
 
       abortRef.current?.abort();
       const controller = new AbortController();
@@ -96,7 +119,10 @@ export function RulesReferee() {
 
       const id = crypto.randomUUID();
       setEntries((prev) =>
-        [{ id, question, answer: "", lang, state: "streaming" as const }, ...prev].slice(0, MAX_ENTRIES),
+        [
+          { id, question, photoUrl: attached?.dataUrl, answer: "", lang, state: "streaming" as const },
+          ...prev,
+        ].slice(0, MAX_ENTRIES),
       );
       requestAnimationFrame(() => answersRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
 
@@ -104,7 +130,11 @@ export function RulesReferee() {
         const res = await fetch("/api/ask", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lang, messages: [...history, { role: "user", content: question }] }),
+          body: JSON.stringify({
+            lang,
+            messages: [...history, { role: "user", content: question }],
+            photo: attached ? { data: attached.base64, mediaType: attached.mediaType } : undefined,
+          }),
           signal: controller.signal,
         });
         if (!res.ok || !res.body) {
@@ -214,6 +244,25 @@ export function RulesReferee() {
           )}
 
           <form className="ask-form" onSubmit={onSubmit}>
+            <button
+              type="button"
+              className="photo-btn"
+              aria-label={r.addPhoto}
+              title={r.addPhoto}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <CameraIcon />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              hidden
+              onChange={(e) => {
+                void onPhotoPicked(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
             <label htmlFor="question" className="visually-hidden">
               {r.inputLabel}
             </label>
@@ -227,10 +276,21 @@ export function RulesReferee() {
               onKeyDown={onKeyDown}
               enterKeyHint="send"
             />
-            <button type="submit" className="send" disabled={!input.trim()}>
+            <button type="submit" className="send" disabled={!input.trim() && !photo}>
               {r.send}
             </button>
           </form>
+
+          {photo && (
+            <div className="photo-preview">
+              {/* eslint-disable-next-line @next/next/no-img-element -- local data URL preview */}
+              <img src={photo.dataUrl} alt={r.photoAlt} />
+              <p>{r.photoReady}</p>
+              <button type="button" className="photo-remove" aria-label={r.removePhoto} onClick={() => setPhoto(null)}>
+                ×
+              </button>
+            </div>
+          )}
 
           <div className="chips" aria-label={r.examplesAria}>
             {r.quickQuestions.map((q) => (
@@ -260,6 +320,10 @@ export function RulesReferee() {
                   <span className="tag">{r.questionTag}</span>
                   {entry.question}
                 </p>
+                {entry.photoUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element -- local data URL of the user's photo
+                  <img className="answer-photo" src={entry.photoUrl} alt={r.photoAlt} />
+                )}
                 {entry.answer ? (
                   <div className="answer-body" lang={entry.lang}>
                     <Markdown>{entry.answer}</Markdown>
@@ -364,6 +428,20 @@ function MicIcon({ listening }: { listening: boolean }) {
         strokeWidth="1.8"
         strokeLinecap="round"
       />
+    </svg>
+  );
+}
+
+function CameraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true">
+      <path
+        d="M4 8.5A2.5 2.5 0 0 1 6.5 6h1.6l1.2-1.8c.3-.4.8-.7 1.3-.7h2.8c.5 0 1 .3 1.3.7L15.9 6h1.6A2.5 2.5 0 0 1 20 8.5v8a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+      <circle cx="12" cy="12.5" r="3.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
     </svg>
   );
 }
