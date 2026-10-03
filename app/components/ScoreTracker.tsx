@@ -21,7 +21,7 @@ import { AddGameForm } from "./AddGame";
 import { useI18n } from "./i18n";
 import { ColorPicker, playerStyle } from "./players";
 import { PlayerPicker } from "./Onboarding";
-import { leaveGroup, selectGroup, useGroupId } from "./session";
+import { forgetGroup, inviteUrl, leaveGroup, selectGroup, useGroupId } from "./session";
 import { SiteNav } from "./SiteNav";
 
 type Toast = { text: string; undo?: Game; share?: string };
@@ -45,13 +45,29 @@ export function ScoreTracker() {
       },
       (err) => {
         // Deleted on another phone: go back to the player picker.
-        if (errorCodeOf(err) === "group_not_found") leaveGroup();
+        if (errorCodeOf(err) === "group_not_found") forgetGroup(groupId);
         else setLoadError(errorCodeOf(err));
       },
     );
   }, [groupId]);
 
   useEffect(load, [load]);
+
+  // Opening an invite link (/skor?davet=<group id>) joins that group on this phone.
+  useEffect(() => {
+    const invite = new URLSearchParams(window.location.search).get("davet");
+    if (!invite) return;
+    window.history.replaceState(null, "", "/skor");
+    fetchScoreboard(invite).then(
+      (joined) => {
+        selectGroup(joined);
+        setToast({ text: t.invite.joined(joined.players.map((p) => p.name).join(" · ")) });
+      },
+      () => setToast({ text: t.errors.invite_invalid }),
+    );
+    // Runs once per page load; the text language at that moment is fine.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!toast) return;
@@ -88,7 +104,7 @@ export function ScoreTracker() {
         : t.scores.savedWin(r.winners[0].name, r.margin);
     if (before.length > 0 && r.winners.length === 1 && r.margin > prevRecord) text += t.scores.newRecord;
     else if (before.length > 0 && r.ranked[0].gold > prevHigh) text += t.scores.newHigh;
-    setToast({ text, share: whatsappLink(scoreboardShareText(after, t, shareUrl())) });
+    setToast({ text, share: whatsappLink(scoreboardShareText(after, t, inviteUrl(after.id))) });
   };
 
   return (
@@ -120,15 +136,16 @@ export function ScoreTracker() {
         </div>
       )}
 
-      {groupId && !board && !loadError && <p className="loading">{t.scores.loading}</p>}
+      {groupId && board?.id !== groupId && !loadError && <p className="loading">{t.scores.loading}</p>}
 
-      {groupId && board && (
+      {groupId && board && board.id === groupId && (
         <main className="score-main">
           <Leaderboard stats={stats} totalGames={results.length} />
+          {results.length === 0 && <InviteBox board={board} />}
           {results.length > 0 && (
             <a
               className="share-btn area-share"
-              href={whatsappLink(scoreboardShareText(board, t, shareUrl()))}
+              href={whatsappLink(scoreboardShareText(board, t, inviteUrl(board.id)))}
               target="_blank"
               rel="noopener noreferrer"
             >
@@ -180,7 +197,44 @@ export function ScoreTracker() {
   );
 }
 
-const shareUrl = () => `${window.location.origin}/skor`;
+/** Invite link for other phones: WhatsApp or copy. Anyone with the link can see and add scores. */
+function InviteBox({ board }: { board: Scoreboard }) {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState(false);
+  const url = inviteUrl(board.id);
+  const names = board.players.map((p) => p.name).join(" · ");
+  return (
+    <section className="invite-box area-invite" aria-labelledby={`invite-${board.id}`}>
+      <h3 id={`invite-${board.id}`}>🔗 {t.invite.title}</h3>
+      <p>{t.invite.hint}</p>
+      <div className="invite-actions">
+        <a
+          className="share-btn"
+          href={whatsappLink(t.invite.message(names, url))}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          <WhatsAppIcon /> {t.invite.whatsapp}
+        </a>
+        <button
+          type="button"
+          className="pill"
+          onClick={() =>
+            navigator.clipboard.writeText(url).then(
+              () => {
+                setCopied(true);
+                window.setTimeout(() => setCopied(false), 2500);
+              },
+              () => window.prompt(t.invite.copy, url),
+            )
+          }
+        >
+          {copied ? t.invite.copied : t.invite.copy}
+        </button>
+      </div>
+    </section>
+  );
+}
 
 function WhatsAppIcon() {
   return (
@@ -414,6 +468,7 @@ function Players({ board, mutate }: { board: Scoreboard; mutate: Mutate }) {
           {error}
         </p>
       )}
+      <InviteBox board={board} />
       <div className="players-actions">
         {editing === null && board.players.length < MAX_PLAYERS && (
           <button type="button" className="pill" onClick={() => startEditing("new", "")}>

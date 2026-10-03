@@ -1893,3 +1893,52 @@ h1 {
 .players .player-row .color-picker {
   margin-left: auto;
 }
+
+/* ---------- invite links ---------- */
+
+.invite-box {
+  margin: 4px 0 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: #eef4e6;
+  border: 1px solid #c9dbb4;
+}
+
+.invite-box h3 {
+  margin: 0 0 4px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: var(--forest-deep);
+}
+
+.invite-box p {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  color: var(--ink-soft);
+}
+
+.invite-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.invite-actions .share-btn {
+  padding: 10px 16px;
+}
+
+.invite-note {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: #eef4e6;
+  border: 1px solid #c9dbb4;
+  font-size: 0.95rem;
+}
+
+@media (min-width: 960px) {
+  .score-main > .area-invite {
+    grid-column: 1 / -1;
+  }
+}

@@ -38,6 +38,7 @@ const tr = {
     max_players: "En fazla 5 oyuncu olabilir.",
     player_not_found: "Oyuncu bulunamadı.",
     photo_failed: "Fotoğraf açılamadı. Başka bir fotoğraf deneyin.",
+    invite_invalid: "Bu davet linki geçersiz ya da oyuncu grubu silinmiş.",
     offline: "İnternet bağlantısı yok. Kart rehberi internetsiz de çalışır.",
     group_not_found: "Bu oyuncu grubu artık yok.",
     max_groups: "En fazla 20 oyuncu grubu olabilir. Eskilerden birini silin.",
@@ -147,6 +148,15 @@ const tr = {
     dismiss: "Kapat",
   },
   colors: { orange: "Turuncu", blue: "Mavi", black: "Siyah", white: "Beyaz" },
+  invite: {
+    title: "Diğer telefonları davet et",
+    hint: "Bu skor tablosu sadece davet linkini açan telefonlarda görünür. Linki sadece birlikte oynadığınız kişilere gönderin.",
+    whatsapp: "WhatsApp'ta gönder",
+    copy: "Linki kopyala",
+    copied: "Kopyalandı ✓",
+    message: (names: string, url: string) => `Kingdom Builder skor tablomuza katıl (${names}): ${url}`,
+    joined: (names: string) => `Katıldınız: ${names}`,
+  },
   share: {
     button: "WhatsApp'ta paylaş",
     title: "Kingdom Builder skorları",
@@ -167,7 +177,8 @@ const tr = {
   },
   onboarding: {
     pickTitle: "Kimler oynuyor?",
-    pickLede: "Kayıtlı oyunculardan birini seçin ya da aşağıya yeni oyuncular yazın.",
+    pickLede: "Bu telefondaki oyunculardan birini seçin ya da aşağıya yeni oyuncular yazın.",
+    inviteNote: "Ailenizin oyuncuları başka bir telefonda zaten kayıtlıysa, size gönderilen davet linkini açın; skorlar bu telefona da gelir.",
     groupMeta: (games: number, last: string) => `${games} oyun · son: ${last}`,
     noGames: "Henüz oyun yok",
     confirmDelete: (games: number) => (games ? `Bu oyuncular ve ${games} oyunu silinsin mi?` : "Silinsin mi?"),
@@ -247,6 +258,7 @@ const en: Messages = {
     max_players: "There can be at most 5 players.",
     player_not_found: "Player not found.",
     photo_failed: "Couldn't open the photo. Please try another one.",
+    invite_invalid: "This invite link is not valid, or the player group was deleted.",
     offline: "No internet connection. The card guide works offline too.",
     group_not_found: "This player group no longer exists.",
     max_groups: "There can be at most 20 player groups. Delete an old one.",
@@ -356,6 +368,15 @@ const en: Messages = {
     dismiss: "Close",
   },
   colors: { orange: "Orange", blue: "Blue", black: "Black", white: "White" },
+  invite: {
+    title: "Invite other phones",
+    hint: "This scoreboard only shows up on phones that open the invite link. Only send it to the people you play with.",
+    whatsapp: "Send on WhatsApp",
+    copy: "Copy link",
+    copied: "Copied ✓",
+    message: (names: string, url: string) => `Join our Kingdom Builder scoreboard (${names}): ${url}`,
+    joined: (names: string) => `Joined: ${names}`,
+  },
   share: {
     button: "Share on WhatsApp",
     title: "Kingdom Builder scores",
@@ -376,7 +397,8 @@ const en: Messages = {
   },
   onboarding: {
     pickTitle: "Who's playing?",
-    pickLede: "Pick saved players, or enter new players below.",
+    pickLede: "Pick players saved on this phone, or enter new players below.",
+    inviteNote: "If your family's players are already set up on another phone, open the invite link they sent you; the scores will appear here too.",
     groupMeta: (games: number, last: string) => `${games} ${games === 1 ? "game" : "games"} · last: ${last}`,
     noGames: "No games yet",
     confirmDelete: (games: number) =>

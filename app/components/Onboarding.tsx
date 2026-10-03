@@ -7,16 +7,27 @@ import { deleteGroup, errorCodeOf, fetchGroups, sendMutation } from "@/lib/score
 import { formatDay } from "@/lib/stats";
 import { useI18n } from "./i18n";
 import { ColorPicker, playerStyle } from "./players";
-import { chooseGroup } from "./session";
+import { chooseGroup, forgetGroup, knownGroupIds } from "./session";
 
-/** "Who's playing?": pick saved players or enter new ones. Shown on the scoreboard until this device picks. */
+/**
+ * "Who's playing?": pick this phone's saved players or enter new ones. Shown on the scoreboard
+ * until this device picks. Only groups this phone created or joined by invite link are listed.
+ */
 export function PlayerPicker() {
   const { t } = useI18n();
   const [groups, setGroups] = useState<GroupSummary[] | null>(null);
   const [error, setError] = useState("");
 
   const load = () => {
-    fetchGroups().then(setGroups, (err) => setError(errorCodeOf(err)));
+    const known = knownGroupIds();
+    fetchGroups(known).then(
+      (found) => {
+        // Deleted on another phone: drop it from this phone's list too.
+        known.filter((id) => !found.some((g) => g.id === id)).forEach(forgetGroup);
+        setGroups(found);
+      },
+      (err) => setError(errorCodeOf(err)),
+    );
   };
   useEffect(load, []);
 
@@ -48,11 +59,13 @@ export function PlayerPicker() {
           <p className="setup-lede">{o.pickLede}</p>
           <ul className="group-list">
             {groups.map((g) => (
-              <GroupRow key={g.id} group={g} onDeleted={setGroups} />
+              <GroupRow key={g.id} group={g} onDeleted={() => setGroups((prev) => prev!.filter((x) => x.id !== g.id))} />
             ))}
           </ul>
         </section>
       )}
+
+      {groups && groups.length === 0 && <p className="invite-note">{o.inviteNote}</p>}
 
       {groups && (
         <section className="panel" aria-labelledby="setup-title">
@@ -63,7 +76,7 @@ export function PlayerPicker() {
   );
 }
 
-function GroupRow({ group, onDeleted }: { group: GroupSummary; onDeleted: (groups: GroupSummary[]) => void }) {
+function GroupRow({ group, onDeleted }: { group: GroupSummary; onDeleted: () => void }) {
   const { t } = useI18n();
   const o = t.onboarding;
   const [confirming, setConfirming] = useState(false);
@@ -91,7 +104,15 @@ function GroupRow({ group, onDeleted }: { group: GroupSummary; onDeleted: (group
           <button
             type="button"
             className="link danger"
-            onClick={() => deleteGroup(group.id).then(onDeleted, (err) => setError(errorText(t, errorCodeOf(err))))}
+            onClick={() =>
+              deleteGroup(group.id).then(
+                () => {
+                  forgetGroup(group.id);
+                  onDeleted();
+                },
+                (err) => setError(errorText(t, errorCodeOf(err))),
+              )
+            }
           >
             {t.scores.yesDelete}
           </button>

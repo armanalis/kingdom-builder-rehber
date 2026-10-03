@@ -19,8 +19,11 @@ async function request<T>(input: string, init: RequestInit | undefined, fallback
   return data as T;
 }
 
-export async function fetchGroups(): Promise<GroupSummary[]> {
-  return (await request<{ groups: GroupSummary[] }>("/api/scores", undefined, "load_failed")).groups;
+/** Summaries of the groups this phone knows (there is no public list of all groups). */
+export async function fetchGroups(ids: string[]): Promise<GroupSummary[]> {
+  if (ids.length === 0) return [];
+  const query = encodeURIComponent(ids.join(","));
+  return (await request<{ groups: GroupSummary[] }>(`/api/scores?groups=${query}`, undefined, "load_failed")).groups;
 }
 
 export function fetchScoreboard(groupId: string): Promise<Scoreboard> {
@@ -37,8 +40,8 @@ const post = <T>(mutation: Mutation) =>
 /** Group-level changes (add game, rename player, create group…); returns the updated group. */
 export const sendMutation = (mutation: Exclude<Mutation, { type: "deleteGroup" }>) => post<Scoreboard>(mutation);
 
-export async function deleteGroup(groupId: string): Promise<GroupSummary[]> {
-  return (await post<{ groups: GroupSummary[] }>({ type: "deleteGroup", groupId })).groups;
+export async function deleteGroup(groupId: string): Promise<void> {
+  await post<{ ok: true }>({ type: "deleteGroup", groupId });
 }
 
 export const errorCodeOf = (error: unknown) => (error instanceof ApiError ? error.code : "generic");

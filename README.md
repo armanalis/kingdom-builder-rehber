@@ -16,8 +16,9 @@ A voice-first rules referee and scoreboard for the board game **Kingdom Builder*
 - **Ask out loud or type.** You get a short, precise answer grounded in the official rulebook, e.g. "For Farmers, does each quarter count separately, and do settlements need to be connected?" Card and tile names stay in English, as printed on the components.
 - **Answers read aloud** for spoken questions.
 - **Quick card guide** for all 10 Kingdom Builder cards and 8 location tiles, which works without any AI.
-- **Scoreboard for 2–5 players** shared across every phone: wins, record margin, closest game, winning and losing streaks, revenge rate, lucky card, game-night streak and more.
-- **First-visit onboarding** where players type their own names, a **TR / EN** switch, and layouts for phones and desktop.
+- **Scoreboard for 2–5 players**: wins, record margin, closest game, winning and losing streaks, revenge rate, lucky card, game-night streak and more. A fast score calculator (one count per card), player colors and WhatsApp sharing.
+- **Private player groups**: there is no public list. A group only appears on phones that created it or opened its invite link (`/skor?davet=<id>`).
+- **TR / EN** switch, layouts for phones and desktop, installable on the home screen with an offline card guide.
 
 ## How it works
 

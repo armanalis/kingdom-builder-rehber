@@ -57,7 +57,10 @@ function freeColor(players: Player[]): string {
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 5;
 export const MAX_GOLD = 400;
-export const MAX_GROUPS = 20;
+// Groups are private: a group's id is its secret invite key, so it must be unguessable.
+export const MAX_GROUPS = 200;
+export const isGroupKey = (id: unknown): id is string =>
+  typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 export const KB_CARD_NAMES = [
   "Farmers",
@@ -200,7 +203,7 @@ function applyToGroup(board: Scoreboard, m: GroupMutation): Scoreboard {
 /** Applies a mutation; returns the new store and the id of the group it touched. */
 export function applyMutation(store: Store, m: Mutation): { store: Store; groupId?: string } {
   if (m.type === "createGroup") {
-    const id = typeof m.id === "string" && m.id ? m.id : newId();
+    const id = isGroupKey(m.id) ? m.id : newId();
     if (store.groups.some((g) => g.id === id)) return { store, groupId: id }; // idempotent retry
     if (store.groups.length >= MAX_GROUPS) throw new ScoreboardError("max_groups");
     const names = Array.isArray(m.names) ? m.names.map(cleanName) : [];

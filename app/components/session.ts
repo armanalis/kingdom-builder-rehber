@@ -3,9 +3,12 @@
 import { useSyncExternalStore } from "react";
 import type { Player } from "@/lib/scoreboard";
 
-// Which player group this device plays with (each phone chooses its own).
+// Which player group this device plays with (each phone chooses its own), and which
+// groups it knows about: groups are private, so a phone only sees groups it created
+// or joined through an invite link.
 const ID_KEY = "kb-group";
 const LABEL_KEY = "kb-group-label";
+const KNOWN_KEY = "kb-groups";
 
 const listeners = new Set<() => void>();
 const subscribe = (listener: () => void) => {
@@ -24,7 +27,37 @@ export function useGroupLabel(): string {
   return useSyncExternalStore(subscribe, () => localStorage.getItem(LABEL_KEY) ?? "", () => "");
 }
 
+export function knownGroupIds(): string[] {
+  try {
+    const ids = JSON.parse(localStorage.getItem(KNOWN_KEY) ?? "[]");
+    const list = Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+    // Phones that picked a group before invite links existed.
+    const current = localStorage.getItem(ID_KEY);
+    return current && !list.includes(current) ? [current, ...list] : list;
+  } catch {
+    return [];
+  }
+}
+
+function rememberGroup(id: string) {
+  localStorage.setItem(KNOWN_KEY, JSON.stringify([id, ...knownGroupIds().filter((x) => x !== id)].slice(0, 20)));
+}
+
+/** The group was deleted (here or on another phone). */
+export function forgetGroup(id: string) {
+  localStorage.setItem(KNOWN_KEY, JSON.stringify(knownGroupIds().filter((x) => x !== id)));
+  if (localStorage.getItem(ID_KEY) === id) {
+    localStorage.removeItem(ID_KEY);
+    localStorage.removeItem(LABEL_KEY);
+  }
+  notify();
+}
+
+/** Invite link for a group: opening it on another phone joins that group. */
+export const inviteUrl = (groupId: string) => `${window.location.origin}/skor?davet=${groupId}`;
+
 export function selectGroup(group: { id: string; players: Player[] }) {
+  rememberGroup(group.id);
   localStorage.setItem(ID_KEY, group.id);
   localStorage.setItem(LABEL_KEY, group.players.map((p) => p.name).join(" · "));
   notify();
