@@ -950,12 +950,6 @@ h1 {
   color: var(--ink-soft);
 }
 
-.card-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
 .chip[aria-pressed="true"] {
   background: var(--forest);
   border-color: var(--forest);
@@ -1379,10 +1373,11 @@ h1 {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
     grid-template-areas:
       "lead lead"
+      "share share"
       "add stats"
       "history stats"
       "players stats";
-    grid-template-rows: auto auto auto 1fr;
+    grid-template-rows: auto auto auto auto 1fr;
     column-gap: 32px;
     align-items: start;
   }
@@ -1577,4 +1572,278 @@ h1 {
   border: 1px solid var(--line);
   object-fit: contain;
   background: var(--parchment);
+}
+
+/* ---------- score calculator ---------- */
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin: -2px 0 16px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--parchment);
+  border: 1px solid var(--line);
+}
+
+.mode-switch button {
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+.mode-switch button[aria-pressed="true"] {
+  background: var(--forest);
+  color: #fff8e6;
+}
+
+.calc-step {
+  margin: 4px 0 8px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--castle);
+}
+
+.who-played {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.who-played .chip[aria-pressed="true"] {
+  background: #fff;
+  border-color: var(--player);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--player);
+}
+
+.who-played .chip[aria-pressed="false"] {
+  opacity: 0.55;
+}
+
+.card-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.card-pick {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  padding: 8px 4px;
+  border-radius: 12px;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.card-pick[aria-pressed="true"] {
+  border-color: var(--forest);
+  background: #eef4e6;
+  box-shadow: inset 0 0 0 1.5px var(--forest);
+}
+
+.calc-hint {
+  margin: 0 0 10px;
+  font-size: 0.85rem;
+  color: var(--ink-soft);
+}
+
+.calc-players {
+  display: grid;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.calc-player {
+  margin: 0;
+  padding: 10px 12px 12px;
+  border: 1.5px solid var(--line);
+  border-top: 5px solid var(--player);
+  border-radius: 14px;
+  background: #fff;
+  min-width: 0;
+}
+
+.calc-player legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 0 4px;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.calc-total {
+  margin-left: auto;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+}
+
+.calc-total strong {
+  font-family: var(--font-display), Georgia, serif;
+  font-size: 1.4rem;
+  color: var(--forest-deep);
+}
+
+.calc-rule {
+  padding: 8px 0;
+  border-top: 1px dashed var(--line);
+}
+
+.calc-rule:first-of-type {
+  border-top: 0;
+}
+
+.calc-rule-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.calc-rule-head .component-img.is-card {
+  width: 28px;
+  height: auto;
+}
+
+.calc-rule-head .component-img.is-tile {
+  width: 30px;
+  height: auto;
+}
+
+.calc-castle {
+  font-size: 1.3rem;
+}
+
+.calc-rule-name {
+  font-family: var(--font-display), Georgia, serif;
+  font-weight: 700;
+}
+
+.calc-rule-gold {
+  margin-left: auto;
+  font-weight: 800;
+  color: var(--forest-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+.calc-field {
+  display: grid;
+  grid-template-columns: 1fr 72px 40px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.calc-field label {
+  font-size: 0.95rem;
+  line-height: 1.25;
+}
+
+.calc-field input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1.5px solid var(--line);
+  background: var(--parchment);
+  font-size: 1.3rem;
+  font-weight: 800;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.calc-field input:focus {
+  border-color: var(--gold);
+  background: #fff;
+}
+
+.calc-rate {
+  font-weight: 800;
+  color: var(--ink-soft);
+}
+
+/* ---------- sharing ---------- */
+
+.share-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  justify-self: center;
+  padding: 12px 20px;
+  border-radius: 999px;
+  background: #1f9d55;
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+  box-shadow: 0 8px 20px -10px rgb(20 90 50 / 0.8);
+}
+
+.toast a {
+  flex: none;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #1f9d55;
+  color: #fff;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+@media (min-width: 960px) {
+  .area-share {
+    grid-area: share;
+  }
+}
+
+/* ---------- install tip ---------- */
+
+.install-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 16px;
+  background: #eef4e6;
+  border: 1px solid #c9dbb4;
+}
+
+.install-icon {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.install-hint > div {
+  flex: 1;
+}
+
+.install-hint p {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.install-hint .install-title {
+  margin-bottom: 2px;
+  font-weight: 800;
+  color: var(--forest-deep);
+}
+
+@media (min-width: 960px) {
+  .rules-main .install-hint {
+    grid-area: answers;
+    align-self: start;
+  }
 }

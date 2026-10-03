@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { errorText } from "@/lib/i18n";
-import { KB_CARD_NAMES, MAX_GOLD, MAX_PLAYERS, type Game, type GroupMutation, type Scoreboard } from "@/lib/scoreboard";
+import { MAX_PLAYERS, type Game, type GroupMutation, type Scoreboard } from "@/lib/scoreboard";
 import { errorCodeOf, fetchScoreboard, sendMutation } from "@/lib/scoresClient";
+import { scoreboardShareText, whatsappLink } from "@/lib/share";
 import {
   activePlayers,
   comparisons,
@@ -11,18 +12,18 @@ import {
   outcomes,
   playerStats,
   sharedFacts,
-  todayLocal,
   type Comparison,
   type Fact,
   type Outcome,
   type PlayerStats,
 } from "@/lib/stats";
+import { AddGameForm } from "./AddGame";
 import { useI18n } from "./i18n";
 import { PlayerPicker } from "./Onboarding";
 import { leaveGroup, selectGroup, useGroupId } from "./session";
 import { SiteNav } from "./SiteNav";
 
-type Toast = { text: string; undo?: Game };
+type Toast = { text: string; undo?: Game; share?: string };
 /** A change to the selected group (the group id is added automatically). */
 type Change = GroupMutation extends infer M ? (M extends GroupMutation ? Omit<M, "groupId"> : never) : never;
 type Mutate = (change: Change) => Promise<Scoreboard>;
@@ -86,7 +87,7 @@ export function ScoreTracker() {
         : t.scores.savedWin(r.winners[0].name, r.margin);
     if (before.length > 0 && r.winners.length === 1 && r.margin > prevRecord) text += t.scores.newRecord;
     else if (before.length > 0 && r.ranked[0].gold > prevHigh) text += t.scores.newHigh;
-    setToast({ text });
+    setToast({ text, share: whatsappLink(scoreboardShareText(after, t, shareUrl())) });
   };
 
   return (
@@ -123,6 +124,16 @@ export function ScoreTracker() {
       {groupId && board && (
         <main className="score-main">
           <Leaderboard stats={stats} totalGames={results.length} />
+          {results.length > 0 && (
+            <a
+              className="share-btn area-share"
+              href={whatsappLink(scoreboardShareText(board, t, shareUrl()))}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <WhatsAppIcon /> {t.share.button}
+            </a>
+          )}
           <AddGameForm board={board} mutate={mutate} onSaved={(after, id) => onSaved(results, after, id)} />
           {results.length > 0 && <Stats facts={facts} rows={rows} />}
           {results.length > 0 && (
@@ -145,6 +156,11 @@ export function ScoreTracker() {
       {toast && (
         <div className="toast" role="status">
           <span>{toast.text}</span>
+          {toast.share && (
+            <a href={toast.share} target="_blank" rel="noopener noreferrer" onClick={() => setToast(null)}>
+              WhatsApp
+            </a>
+          )}
           {toast.undo && (
             <button
               type="button"
@@ -160,6 +176,19 @@ export function ScoreTracker() {
         </div>
       )}
     </div>
+  );
+}
+
+const shareUrl = () => `${window.location.origin}/skor`;
+
+function WhatsAppIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2m0 18.2c-1.5 0-3-.4-4.3-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2m4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.3-.4.7-1.4.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2s.2-1.1.2-1.2-.2-.2-.5-.3"
+      />
+    </svg>
   );
 }
 
@@ -194,143 +223,6 @@ function Leaderboard({ stats, totalGames }: { stats: PlayerStats[]; totalGames: 
         );
       })}
       {totalGames === 0 && <p className="empty">{t.scores.empty}</p>}
-    </section>
-  );
-}
-
-function AddGameForm({
-  board,
-  mutate,
-  onSaved,
-}: {
-  board: Scoreboard;
-  mutate: Mutate;
-  onSaved: (after: Scoreboard, gameId: string) => void;
-}) {
-  const { t } = useI18n();
-  const [playing, setPlaying] = useState<Set<string>>(() => {
-    const last = board.games.at(-1);
-    return new Set(last ? last.scores.map((s) => s.playerId) : board.players.map((p) => p.id));
-  });
-  const [gold, setGold] = useState<Record<string, string>>({});
-  const [day, setDay] = useState(todayLocal);
-  const [cards, setCards] = useState<string[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-
-  const entries = board.players.filter((p) => playing.has(p.id)).map((p) => ({ player: p, value: gold[p.id] ?? "" }));
-  const ready = entries.length >= 2 && entries.every((e) => /^\d+$/.test(e.value) && Number(e.value) <= MAX_GOLD);
-
-  const preview = (() => {
-    if (!ready) return "";
-    const ranked = [...entries].sort((a, b) => Number(b.value) - Number(a.value));
-    const top = Number(ranked[0].value);
-    const tied = ranked.filter((e) => Number(e.value) === top);
-    if (tied.length > 1) return t.scores.previewTie(tied.map((e) => e.player.name).join(` ${t.and} `));
-    const next = ranked.find((e) => Number(e.value) < top)!;
-    return t.scores.previewWin(ranked[0].player.name, top - Number(next.value));
-  })();
-
-  const togglePlayer = (id: string) =>
-    setPlaying((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-
-  const toggleCard = (card: string) =>
-    setCards((prev) => (prev.includes(card) ? prev.filter((c) => c !== card) : prev.length < 3 ? [...prev, card] : prev));
-
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!ready || saving) return;
-    setSaving(true);
-    setError("");
-    const id = crypto.randomUUID();
-    try {
-      const after = await mutate({
-        type: "addGame",
-        game: {
-          id,
-          playedOn: day,
-          scores: entries.map((x) => ({ playerId: x.player.id, gold: Number(x.value) })),
-          cards,
-        },
-      });
-      setGold({});
-      setCards([]);
-      setDay(todayLocal());
-      onSaved(after, id);
-    } catch (err) {
-      setError(errorText(t, errorCodeOf(err)));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <section className="panel area-add" aria-labelledby="add-title">
-      <h2 id="add-title" className="panel-title">
-        {t.scores.addTitle}
-      </h2>
-      <form onSubmit={onSubmit}>
-        <div className="score-inputs">
-          {board.players.map((p) => {
-            const on = playing.has(p.id);
-            return (
-              <div key={p.id} className={`score-row${on ? "" : " is-off"}`} style={{ "--player": p.color } as CSSProperties}>
-                <label className="score-player">
-                  <input type="checkbox" checked={on} onChange={() => togglePlayer(p.id)} />
-                  <span className="dot" aria-hidden="true" />
-                  <span className="score-player-name">{p.name}</span>
-                </label>
-                {on && (
-                  <label className="gold-input">
-                    <span className="visually-hidden">{t.scores.goldOf(p.name)}</span>
-                    <input
-                      type="number"
-                      inputMode="numeric"
-                      min={0}
-                      max={MAX_GOLD}
-                      placeholder="0"
-                      value={gold[p.id] ?? ""}
-                      onChange={(e) => setGold((g) => ({ ...g, [p.id]: e.target.value }))}
-                    />
-                    <span aria-hidden="true">{t.scores.gold}</span>
-                  </label>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        <details className="more-options">
-          <summary>{t.scores.moreOptions}</summary>
-          <label className="date-row">
-            {t.scores.date}
-            <input type="date" value={day} max={todayLocal()} onChange={(e) => setDay(e.target.value || todayLocal())} />
-          </label>
-          <p className="cards-hint">{t.scores.cardsHint}</p>
-          <div className="card-chips" lang="en">
-            {KB_CARD_NAMES.map((c) => (
-              <button key={c} type="button" className="chip" aria-pressed={cards.includes(c)} onClick={() => toggleCard(c)}>
-                {c}
-              </button>
-            ))}
-          </div>
-        </details>
-
-        {preview && <p className="preview">{preview}</p>}
-        {error && (
-          <p className="notice" role="alert">
-            {error}
-          </p>
-        )}
-        <button type="submit" className="send send-wide" disabled={!ready || saving}>
-          {saving ? t.scores.saving : t.scores.save}
-        </button>
-      </form>
     </section>
   );
 }

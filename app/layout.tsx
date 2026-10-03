@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Fraunces, Nunito } from "next/font/google";
 import "./globals.css";
 import { LanguageProvider } from "./components/i18n";
+import { ServiceWorker } from "./components/Pwa";
 
 const display = Fraunces({
   variable: "--font-display",
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <LanguageProvider>
           {children}
+          <ServiceWorker />
         </LanguageProvider>
       </body>
     </html>

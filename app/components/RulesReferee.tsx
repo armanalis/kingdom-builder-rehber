@@ -17,6 +17,7 @@ import { CardGuide, ComponentImage } from "./CardGuide";
 import { useI18n } from "./i18n";
 import { SiteNav } from "./SiteNav";
 import { preparePhoto, type Photo } from "./photo";
+import { InstallHint } from "./Pwa";
 import { canSpeak, speak, stopSpeaking, unlockSpeech } from "./speak";
 import { useSpeechInput } from "./useSpeechInput";
 
@@ -139,6 +140,7 @@ export function RulesReferee() {
         });
         if (!res.ok || !res.body) {
           const data = (await res.json().catch(() => ({}))) as { error?: ErrorCode };
+          if (!navigator.onLine) throw new AskError("offline");
           throw new AskError(data.error ?? "generic");
         }
 
@@ -162,7 +164,8 @@ export function RulesReferee() {
         if (viaVoice && getAutoRead()) readAloud({ id, answer, lang });
       } catch (e) {
         if (controller.signal.aborted) return;
-        update(id, { state: "error", error: e instanceof AskError ? e.code : "generic" });
+        const code = e instanceof AskError ? e.code : navigator.onLine ? "generic" : "offline";
+        update(id, { state: "error", error: code });
       }
     },
     [lang, readAloud],
@@ -307,6 +310,8 @@ export function RulesReferee() {
             </label>
           )}
         </section>
+
+        <InstallHint />
 
         {entries.length > 0 && (
           <section className="answers area-answers" ref={answersRef} aria-label={r.answersAria}>
