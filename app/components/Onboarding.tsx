@@ -1,40 +1,30 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import { errorText } from "@/lib/i18n";
-import { MAX_PLAYERS, MIN_PLAYERS, needsSetup, PLAYER_COLORS, type Scoreboard } from "@/lib/scoreboard";
-import { errorCodeOf, fetchScoreboard, sendMutation } from "@/lib/scoresClient";
+import { MAX_PLAYERS, MIN_PLAYERS, PLAYER_COLORS, type GroupSummary, type Scoreboard } from "@/lib/scoreboard";
+import { deleteGroup, errorCodeOf, fetchGroups, sendMutation } from "@/lib/scoresClient";
+import { formatDay } from "@/lib/stats";
 import { LanguageSwitch, useI18n } from "./i18n";
+import { chooseGroup, useGroupId } from "./session";
 
-const STORAGE_KEY = "kb-onboarded";
-const listeners = new Set<() => void>();
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-};
-const isOnboarded = () => localStorage.getItem(STORAGE_KEY) === "1";
-
-function finishOnboarding() {
-  localStorage.setItem(STORAGE_KEY, "1");
-  listeners.forEach((l) => l());
-  window.scrollTo(0, 0);
-}
-
-/** Shows the welcome screen on a device's first visit, the app afterwards. */
+/** Shows the player picker until this device has chosen a player group. */
 export function OnboardingGate({ children }: { children: ReactNode }) {
-  const onboarded = useSyncExternalStore(subscribe, isOnboarded, () => true);
-  return onboarded ? children : <Onboarding />;
+  const groupId = useGroupId();
+  return groupId === null ? <PlayerPicker /> : children;
 }
 
-function Onboarding() {
+function PlayerPicker() {
   const { t } = useI18n();
-  const [board, setBoard] = useState<Scoreboard | null>(null);
-  const [offline, setOffline] = useState(false);
+  const [groups, setGroups] = useState<GroupSummary[] | null>(null);
+  const [error, setError] = useState("");
 
-  useEffect(() => {
-    fetchScoreboard().then(setBoard, () => setOffline(true));
-  }, []);
+  const load = () => {
+    fetchGroups().then(setGroups, (err) => setError(errorCodeOf(err)));
+  };
+  useEffect(load, []);
 
+  const o = t.onboarding;
   return (
     <div className="page onboarding">
       <div className="topbar">
@@ -49,44 +39,50 @@ function Onboarding() {
         <p className="eyebrow" lang="en">
           Kingdom Builder
         </p>
-        <h1>{t.onboarding.title}</h1>
-        <p className="lede">{t.onboarding.intro}</p>
+        <h1>{o.title}</h1>
+        <p className="lede">{o.intro}</p>
         <ul className="features">
-          {t.onboarding.features.map((f) => (
+          {o.features.map((f) => (
             <li key={f}>{f}</li>
           ))}
         </ul>
       </header>
 
-      <main>
-        {!board && !offline && <p className="loading">{t.scores.loading}</p>}
+      <main className="picker">
+        {!groups && !error && <p className="loading">{t.scores.loading}</p>}
+        {error && (
+          <div className="notice" role="alert">
+            {errorText(t, error)}{" "}
+            <button
+              type="button"
+              className="pill"
+              onClick={() => {
+                setError("");
+                load();
+              }}
+            >
+              {t.scores.retry}
+            </button>
+          </div>
+        )}
 
-        {board && needsSetup(board) && (
-          <section className="panel" aria-labelledby="setup-title">
-            <PlayerSetupForm onDone={finishOnboarding} />
+        {groups && groups.length > 0 && (
+          <section className="panel" aria-labelledby="pick-title">
+            <h2 id="pick-title" className="panel-title">
+              {o.pickTitle}
+            </h2>
+            <p className="setup-lede">{o.pickLede}</p>
+            <ul className="group-list">
+              {groups.map((g) => (
+                <GroupRow key={g.id} group={g} onDeleted={setGroups} />
+              ))}
+            </ul>
           </section>
         )}
 
-        {(offline || (board && !needsSetup(board))) && (
-          <section className="panel onboarding-ready">
-            {board ? (
-              <>
-                <p className="onboarding-label">{t.onboarding.existing}</p>
-                <ul className="player-pills">
-                  {board.players.map((p) => (
-                    <li key={p.id} style={{ "--player": p.color } as CSSProperties}>
-                      <span className="dot" aria-hidden="true" /> {p.name}
-                    </li>
-                  ))}
-                </ul>
-                <p className="setup-lede">{t.onboarding.existingHint}</p>
-              </>
-            ) : (
-              <p className="setup-lede">{t.onboarding.offline}</p>
-            )}
-            <button type="button" className="send send-wide" onClick={finishOnboarding}>
-              {t.onboarding.start}
-            </button>
+        {groups && (
+          <section className="panel" aria-labelledby="setup-title">
+            <PlayerSetupForm onDone={chooseGroup} />
           </section>
         )}
       </main>
@@ -94,7 +90,57 @@ function Onboarding() {
   );
 }
 
-/** Enter 2–5 player names; used on first visit and on the scoreboard if setup is missing. */
+function GroupRow({ group, onDeleted }: { group: GroupSummary; onDeleted: (groups: GroupSummary[]) => void }) {
+  const { t } = useI18n();
+  const o = t.onboarding;
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState("");
+
+  const meta = group.lastPlayedOn
+    ? o.groupMeta(group.gameCount, formatDay(group.lastPlayedOn, t.locale))
+    : o.noGames;
+
+  return (
+    <li className="group-row">
+      <button type="button" className="group-pick" onClick={() => chooseGroup(group)}>
+        <span className="group-players">
+          {group.players.map((p) => (
+            <span key={p.id} style={{ "--player": p.color } as CSSProperties}>
+              <span className="dot" aria-hidden="true" /> {p.name}
+            </span>
+          ))}
+        </span>
+        <span className="group-meta">{meta}</span>
+      </button>
+      {confirming ? (
+        <span className="confirm">
+          {o.confirmDelete(group.gameCount)}
+          <button
+            type="button"
+            className="link danger"
+            onClick={() => deleteGroup(group.id).then(onDeleted, (err) => setError(errorText(t, errorCodeOf(err))))}
+          >
+            {t.scores.yesDelete}
+          </button>
+          <button type="button" className="link" onClick={() => setConfirming(false)}>
+            {t.scores.cancel}
+          </button>
+        </span>
+      ) : (
+        <button type="button" className="link" onClick={() => setConfirming(true)}>
+          {t.scores.delete}
+        </button>
+      )}
+      {error && (
+        <p className="notice" role="alert">
+          {error}
+        </p>
+      )}
+    </li>
+  );
+}
+
+/** Enter 2–5 player names to start a new player group. */
 export function PlayerSetupForm({ onDone }: { onDone: (board: Scoreboard) => void }) {
   const { t } = useI18n();
   const [names, setNames] = useState(["", ""]);
@@ -108,7 +154,7 @@ export function PlayerSetupForm({ onDone }: { onDone: (board: Scoreboard) => voi
     setSaving(true);
     setError("");
     try {
-      onDone(await sendMutation({ type: "setupPlayers", names }));
+      onDone(await sendMutation({ type: "createGroup", id: crypto.randomUUID(), names }));
     } catch (err) {
       setError(errorText(t, errorCodeOf(err)));
       setSaving(false);

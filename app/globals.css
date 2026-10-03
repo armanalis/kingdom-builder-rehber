@@ -1437,3 +1437,102 @@ h1 {
     justify-content: center;
   }
 }
+
+/* ---------- player groups ---------- */
+
+.group-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 7px 8px 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.9rem;
+  box-shadow: 0 1px 4px -1px rgb(60 40 10 / 0.25);
+}
+
+.group-switch-names {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-switch-action {
+  flex: none;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: var(--forest);
+  color: #fff8e6;
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.picker {
+  display: grid;
+  gap: 18px;
+  max-width: 560px;
+  margin-inline: auto;
+}
+
+.group-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.group-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.group-row .confirm,
+.group-row .notice {
+  grid-column: 1 / -1;
+  justify-self: end;
+}
+
+.group-row .notice {
+  justify-self: stretch;
+  margin: 0;
+}
+
+.group-pick {
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  text-align: left;
+}
+
+.group-pick:hover {
+  border-color: var(--gold);
+}
+
+.group-players {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-weight: 800;
+  font-size: 1.1rem;
+}
+
+.group-meta {
+  font-size: 0.9rem;
+  color: var(--ink-soft);
+}
+
+.players-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}

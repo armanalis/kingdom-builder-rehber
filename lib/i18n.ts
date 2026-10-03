@@ -6,7 +6,13 @@ export const LANGS: Lang[] = ["tr", "en"];
 const tr = {
   locale: "tr-TR",
   and: "ve",
-  nav: { rules: "Kural Hakemi", scores: "Skor Tablosu", language: "Dil" },
+  nav: {
+    rules: "Kural Hakemi",
+    scores: "Skor Tablosu",
+    language: "Dil",
+    changePlayers: "Oyuncuları değiştir",
+    change: "Değiştir",
+  },
   errors: {
     generic: "Bir sorun oluştu. Lütfen tekrar deneyin.",
     rate_limit: "Şu an çok fazla soru soruldu. Bir dakika bekleyip tekrar deneyin.",
@@ -31,6 +37,8 @@ const tr = {
     min_players: "En az 2 oyuncunun skoru girilmeli.",
     max_players: "En fazla 5 oyuncu olabilir.",
     player_not_found: "Oyuncu bulunamadı.",
+    group_not_found: "Bu oyuncu grubu artık yok.",
+    max_groups: "En fazla 20 oyuncu grubu olabilir. Eskilerden birini silin.",
   },
   rules: {
     title: "Kural Hakemi",
@@ -113,9 +121,10 @@ const tr = {
     rename: "İsmi değiştir",
     addPlayer: "+ Oyuncu ekle",
     playerName: "Oyuncu adı",
+    otherPlayers: "Başka oyuncularla oyna",
   },
   setup: {
-    title: "Kimler oynuyor?",
+    title: "Yeni oyuncular",
     lede: "2–5 oyuncu. Herkes kendi ismini yazsın; skorlar bu isimlerle tutulur.",
     player: (i: number) => `${i}. oyuncu`,
     placeholders: ["örn. Ayşe", "örn. Mehmet", "örn. Elif", "örn. Can", "örn. Deniz"],
@@ -128,10 +137,11 @@ const tr = {
     title: "Hoş geldiniz!",
     intro: "Kingdom Builder için kural hakemi ve skor tablosu.",
     features: ["🎙️ Kuralı sesli sorun, anında net cevap alın", "🏆 Her oyunun skorunu kaydedin, rekorları görün"],
-    existing: "Oyuncular zaten kayıtlı:",
-    existingHint: "İsimleri skor tablosundan değiştirebilirsiniz.",
-    start: "Başla",
-    offline: "Oyuncular şu an yüklenemedi; yine de devam edebilirsiniz.",
+    pickTitle: "Kimler oynuyor?",
+    pickLede: "Kayıtlı oyunculardan birini seçin ya da aşağıya yeni oyuncular yazın.",
+    groupMeta: (games: number, last: string) => `${games} oyun · son: ${last}`,
+    noGames: "Henüz oyun yok",
+    confirmDelete: (games: number) => (games ? `Bu oyuncular ve ${games} oyunu silinsin mi?` : "Silinsin mi?"),
   },
   stats: {
     streakNowTitle: "Seri devam ediyor",
@@ -176,7 +186,13 @@ export type Messages = typeof tr;
 const en: Messages = {
   locale: "en-GB",
   and: "and",
-  nav: { rules: "Rules Referee", scores: "Scoreboard", language: "Language" },
+  nav: {
+    rules: "Rules Referee",
+    scores: "Scoreboard",
+    language: "Language",
+    changePlayers: "Change players",
+    change: "Change",
+  },
   errors: {
     generic: "Something went wrong. Please try again.",
     rate_limit: "Too many questions right now. Wait a minute and try again.",
@@ -201,6 +217,8 @@ const en: Messages = {
     min_players: "Enter scores for at least 2 players.",
     max_players: "There can be at most 5 players.",
     player_not_found: "Player not found.",
+    group_not_found: "This player group no longer exists.",
+    max_groups: "There can be at most 20 player groups. Delete an old one.",
   },
   rules: {
     title: "Rules Referee",
@@ -283,9 +301,10 @@ const en: Messages = {
     rename: "Rename",
     addPlayer: "+ Add player",
     playerName: "Player name",
+    otherPlayers: "Play with other players",
   },
   setup: {
-    title: "Who's playing?",
+    title: "New players",
     lede: "2–5 players. Everyone types their own name; scores are kept under these names.",
     player: (i: number) => `Player ${i}`,
     placeholders: ["e.g. Emma", "e.g. Oliver", "e.g. Sophia", "e.g. Liam", "e.g. Mia"],
@@ -298,10 +317,12 @@ const en: Messages = {
     title: "Welcome!",
     intro: "A rules referee and scoreboard for Kingdom Builder.",
     features: ["🎙️ Ask a rule out loud, get a clear answer", "🏆 Log every game and see the records"],
-    existing: "Players already set up:",
-    existingHint: "You can change names on the scoreboard.",
-    start: "Start",
-    offline: "Couldn't load the players right now; you can still continue.",
+    pickTitle: "Who's playing?",
+    pickLede: "Pick saved players, or enter new players below.",
+    groupMeta: (games: number, last: string) => `${games} ${games === 1 ? "game" : "games"} · last: ${last}`,
+    noGames: "No games yet",
+    confirmDelete: (games: number) =>
+      games ? `Delete these players and their ${games} ${games === 1 ? "game" : "games"}?` : "Delete?",
   },
   stats: {
     streakNowTitle: "On a streak",

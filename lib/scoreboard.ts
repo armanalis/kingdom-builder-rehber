@@ -1,6 +1,8 @@
 import type { ErrorCode } from "./i18n";
 
 // Scoreboard data model and the pure mutations applied to it (shared by server and client).
+// All data lives in one store with several player groups (e.g. "Mom & Dad", "Friends");
+// every device chooses which group it plays with.
 
 export type Player = { id: string; name: string; color: string };
 
@@ -17,26 +19,35 @@ export type Game = {
   cards?: string[];
 };
 
-export type Scoreboard = {
-  version: 1;
+/** One group of players and its game history. */
+export type Scoreboard = { id: string; createdAt: string; players: Player[]; games: Game[] };
+
+export type Store = { version: 2; groups: Scoreboard[] };
+
+export type GroupSummary = {
+  id: string;
   players: Player[];
-  games: Game[];
-  /** True once the two players have entered their own names. */
-  setupDone?: boolean;
+  gameCount: number;
+  lastPlayedOn?: string;
 };
 
+export type GroupMutation =
+  | { type: "addGame"; groupId: string; game: Partial<Game> }
+  | { type: "deleteGame"; groupId: string; id: string }
+  | { type: "addPlayer"; groupId: string; name: string }
+  | { type: "renamePlayer"; groupId: string; id: string; name: string };
+
 export type Mutation =
-  | { type: "addGame"; game: Partial<Game> }
-  | { type: "deleteGame"; id: string }
-  | { type: "setupPlayers"; names: string[] }
-  | { type: "addPlayer"; name: string }
-  | { type: "renamePlayer"; id: string; name: string };
+  | GroupMutation
+  | { type: "createGroup"; id?: string; names: string[] }
+  | { type: "deleteGroup"; groupId: string };
 
 // Settlement colors: orange, blue, black, white (shown grey), purple.
 export const PLAYER_COLORS = ["#d9822b", "#3a6fb0", "#2b2118", "#8b9097", "#9b4f96"];
 export const MIN_PLAYERS = 2;
 export const MAX_PLAYERS = 5;
 export const MAX_GOLD = 400;
+export const MAX_GROUPS = 20;
 
 export const KB_CARD_NAMES = [
   "Farmers",
@@ -51,26 +62,37 @@ export const KB_CARD_NAMES = [
   "Workers",
 ];
 
-/** Validation failure; `message` is an i18n error code. */
+/** Validation failure; `code` is an i18n error code. */
 export class ScoreboardError extends Error {
   constructor(public code: ErrorCode) {
     super(code);
   }
 }
 
-export function emptyScoreboard(): Scoreboard {
-  return {
-    version: 1,
-    players: [
-      { id: "p1", name: "1. oyuncu", color: PLAYER_COLORS[0] },
-      { id: "p2", name: "2. oyuncu", color: PLAYER_COLORS[1] },
-    ],
-    games: [],
-  };
+export function emptyStore(): Store {
+  return { version: 2, groups: [] };
 }
 
-export function needsSetup(board: Scoreboard) {
-  return !board.setupDone && board.games.length === 0;
+type LegacyBoard = { version: 1; players: Player[]; games: Game[]; setupDone?: boolean };
+
+/** Reads any stored version; the single-board v1 document becomes the first group. */
+export function migrate(data: unknown): Store {
+  const doc = data as Partial<Store> & Partial<LegacyBoard>;
+  if (doc?.version === 2 && Array.isArray(doc.groups)) return doc as Store;
+  if (doc?.version === 1 && Array.isArray(doc.players) && Array.isArray(doc.games)) {
+    if (!doc.setupDone && doc.games.length === 0) return emptyStore();
+    const createdAt = doc.games[0]?.createdAt ?? new Date().toISOString();
+    return { version: 2, groups: [{ id: "legacy", createdAt, players: doc.players, games: doc.games }] };
+  }
+  return emptyStore();
+}
+
+/** Groups for the player picker, most recently played first. */
+export function summarize(store: Store): GroupSummary[] {
+  const lastActivity = (g: Scoreboard) => g.games.at(-1)?.createdAt ?? g.createdAt;
+  return [...store.groups]
+    .sort((a, b) => lastActivity(b).localeCompare(lastActivity(a)))
+    .map((g) => ({ id: g.id, players: g.players, gameCount: g.games.length, lastPlayedOn: g.games.at(-1)?.playedOn }));
 }
 
 export function sortGames(games: Game[]): Game[] {
@@ -85,11 +107,13 @@ function cleanName(name: unknown): string {
   return value;
 }
 
+const sameName = (a: string, b: string) => a.toLocaleLowerCase("tr") === b.toLocaleLowerCase("tr");
+
 function newId() {
   return crypto.randomUUID();
 }
 
-export function applyMutation(board: Scoreboard, m: Mutation): Scoreboard {
+function applyToGroup(board: Scoreboard, m: GroupMutation): Scoreboard {
   switch (m.type) {
     case "addGame": {
       const g = m.game ?? {};
@@ -125,37 +149,19 @@ export function applyMutation(board: Scoreboard, m: Mutation): Scoreboard {
       };
       return { ...board, games: sortGames([...board.games, game]) };
     }
-    case "setupPlayers": {
-      if (!needsSetup(board)) return board; // another device finished setup first
-      const names = Array.isArray(m.names) ? m.names.map(cleanName) : [];
-      if (names.length < MIN_PLAYERS || names.length > MAX_PLAYERS) throw new ScoreboardError("names_count");
-      if (new Set(names.map((n) => n.toLocaleLowerCase("tr"))).size !== names.length) {
-        throw new ScoreboardError("names_distinct");
-      }
-      const players = names.map((name, i) => ({
-        id: board.players[i]?.id ?? newId(),
-        name,
-        color: PLAYER_COLORS[i],
-      }));
-      return { ...board, players, setupDone: true };
-    }
     case "deleteGame":
       return { ...board, games: board.games.filter((g) => g.id !== m.id) };
     case "addPlayer": {
-      if (board.players.length >= MAX_PLAYERS) {
-        throw new ScoreboardError("max_players");
-      }
+      if (board.players.length >= MAX_PLAYERS) throw new ScoreboardError("max_players");
       const name = cleanName(m.name);
-      if (board.players.some((p) => p.name.toLocaleLowerCase("tr") === name.toLocaleLowerCase("tr"))) {
-        throw new ScoreboardError("names_distinct");
-      }
+      if (board.players.some((p) => sameName(p.name, name))) throw new ScoreboardError("names_distinct");
       const color = PLAYER_COLORS.find((c) => !board.players.some((p) => p.color === c)) ?? PLAYER_COLORS[0];
       return { ...board, players: [...board.players, { id: newId(), name, color }] };
     }
     case "renamePlayer": {
       const name = cleanName(m.name);
       if (!board.players.some((p) => p.id === m.id)) throw new ScoreboardError("player_not_found");
-      if (board.players.some((p) => p.id !== m.id && p.name.toLocaleLowerCase("tr") === name.toLocaleLowerCase("tr"))) {
+      if (board.players.some((p) => p.id !== m.id && sameName(p.name, name))) {
         throw new ScoreboardError("names_distinct");
       }
       return { ...board, players: board.players.map((p) => (p.id === m.id ? { ...p, name } : p)) };
@@ -163,4 +169,35 @@ export function applyMutation(board: Scoreboard, m: Mutation): Scoreboard {
     default:
       throw new ScoreboardError("generic");
   }
+}
+
+/** Applies a mutation; returns the new store and the id of the group it touched. */
+export function applyMutation(store: Store, m: Mutation): { store: Store; groupId?: string } {
+  if (m.type === "createGroup") {
+    const id = typeof m.id === "string" && m.id ? m.id : newId();
+    if (store.groups.some((g) => g.id === id)) return { store, groupId: id }; // idempotent retry
+    if (store.groups.length >= MAX_GROUPS) throw new ScoreboardError("max_groups");
+    const names = Array.isArray(m.names) ? m.names.map(cleanName) : [];
+    if (names.length < MIN_PLAYERS || names.length > MAX_PLAYERS) throw new ScoreboardError("names_count");
+    if (new Set(names.map((n) => n.toLocaleLowerCase("tr"))).size !== names.length) {
+      throw new ScoreboardError("names_distinct");
+    }
+    const group: Scoreboard = {
+      id,
+      createdAt: new Date().toISOString(),
+      players: names.map((name, i) => ({ id: newId(), name, color: PLAYER_COLORS[i] })),
+      games: [],
+    };
+    return { store: { ...store, groups: [...store.groups, group] }, groupId: id };
+  }
+
+  if (m.type === "deleteGroup") {
+    return { store: { ...store, groups: store.groups.filter((g) => g.id !== m.groupId) } };
+  }
+
+  const board = store.groups.find((g) => g.id === m.groupId);
+  if (!board) throw new ScoreboardError("group_not_found");
+  const next = applyToGroup(board, m);
+  if (next === board) return { store, groupId: board.id };
+  return { store: { ...store, groups: store.groups.map((g) => (g.id === board.id ? next : g)) }, groupId: board.id };
 }

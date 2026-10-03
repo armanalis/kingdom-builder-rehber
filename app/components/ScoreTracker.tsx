@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type FormEvent } from "react";
 import { errorText } from "@/lib/i18n";
-import { KB_CARD_NAMES, MAX_GOLD, MAX_PLAYERS, needsSetup, type Game, type Mutation, type Scoreboard } from "@/lib/scoreboard";
+import { KB_CARD_NAMES, MAX_GOLD, MAX_PLAYERS, type Game, type GroupMutation, type Scoreboard } from "@/lib/scoreboard";
 import { errorCodeOf, fetchScoreboard, sendMutation } from "@/lib/scoresClient";
 import {
   activePlayers,
@@ -18,21 +18,35 @@ import {
   type PlayerStats,
 } from "@/lib/stats";
 import { useI18n } from "./i18n";
-import { PlayerSetupForm } from "./Onboarding";
+import { leaveGroup, selectGroup, useGroupId } from "./session";
 import { SiteNav } from "./SiteNav";
 
 type Toast = { text: string; undo?: Game };
-type Mutate = (m: Mutation) => Promise<Scoreboard>;
+/** A change to the selected group (the group id is added automatically). */
+type Change = GroupMutation extends infer M ? (M extends GroupMutation ? Omit<M, "groupId"> : never) : never;
+type Mutate = (change: Change) => Promise<Scoreboard>;
 
 export function ScoreTracker() {
   const { t } = useI18n();
+  const groupId = useGroupId();
   const [board, setBoard] = useState<Scoreboard | null>(null);
   const [loadError, setLoadError] = useState("");
   const [toast, setToast] = useState<Toast | null>(null);
 
   const load = useCallback(() => {
-    fetchScoreboard().then(setBoard, (err) => setLoadError(errorCodeOf(err)));
-  }, []);
+    if (!groupId) return;
+    fetchScoreboard(groupId).then(
+      (next) => {
+        setBoard(next);
+        selectGroup(next); // keeps the player names in the top bar current
+      },
+      (err) => {
+        // Deleted on another phone: go back to the player picker.
+        if (errorCodeOf(err) === "group_not_found") leaveGroup();
+        else setLoadError(errorCodeOf(err));
+      },
+    );
+  }, [groupId]);
 
   useEffect(load, [load]);
 
@@ -42,11 +56,15 @@ export function ScoreTracker() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  const mutate = useCallback<Mutate>(async (mutation) => {
-    const next = await sendMutation(mutation);
-    setBoard(next);
-    return next;
-  }, []);
+  const mutate = useCallback<Mutate>(
+    async (change) => {
+      const next = await sendMutation({ ...change, groupId: groupId! } as GroupMutation);
+      setBoard(next);
+      selectGroup(next);
+      return next;
+    },
+    [groupId],
+  );
 
   const results = useMemo(() => (board ? outcomes(board) : []), [board]);
   const stats = useMemo(() => (board ? playerStats(board, results) : []), [board, results]);
@@ -99,13 +117,7 @@ export function ScoreTracker() {
 
       {!board && !loadError && <p className="loading">{t.scores.loading}</p>}
 
-      {board && needsSetup(board) && (
-        <section className="panel setup-panel" aria-labelledby="setup-title">
-          <PlayerSetupForm onDone={setBoard} />
-        </section>
-      )}
-
-      {board && !needsSetup(board) && (
+      {board && (
         <main className="score-main">
           <Leaderboard stats={stats} totalGames={results.length} />
           <AddGameForm board={board} mutate={mutate} onSaved={(after, id) => onSaved(results, after, id)} />
@@ -497,11 +509,16 @@ function Players({ board, mutate }: { board: Scoreboard; mutate: Mutate }) {
           {error}
         </p>
       )}
-      {editing === null && board.players.length < MAX_PLAYERS && (
-        <button type="button" className="pill" onClick={() => startEditing("new", "")}>
-          {t.scores.addPlayer}
+      <div className="players-actions">
+        {editing === null && board.players.length < MAX_PLAYERS && (
+          <button type="button" className="pill" onClick={() => startEditing("new", "")}>
+            {t.scores.addPlayer}
+          </button>
+        )}
+        <button type="button" className="pill" onClick={leaveGroup}>
+          👥 {t.scores.otherPlayers}
         </button>
-      )}
+      </div>
     </section>
   );
 }

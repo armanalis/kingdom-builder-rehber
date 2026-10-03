@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LanguageSwitch, useI18n } from "./i18n";
+import { leaveGroup, useGroupId, useGroupLabel } from "./session";
 
 export function SiteNav() {
   const pathname = usePathname();
@@ -21,6 +22,22 @@ export function SiteNav() {
         ))}
       </nav>
       <LanguageSwitch />
+      <GroupSwitch />
     </div>
+  );
+}
+
+/** Shows who is playing on this device; tapping it goes back to the player picker. */
+function GroupSwitch() {
+  const { t } = useI18n();
+  const groupId = useGroupId();
+  const label = useGroupLabel();
+  if (!groupId) return null;
+  return (
+    <button type="button" className="group-switch" onClick={leaveGroup} title={t.nav.changePlayers}>
+      <span aria-hidden="true">👥</span>
+      <span className="group-switch-names">{label}</span>
+      <span className="group-switch-action">{t.nav.change}</span>
+    </button>
   );
 }
